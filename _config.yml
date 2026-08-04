@@ -1,0 +1,8 @@
+# GitHub Pages renders README.md as the site homepage with this theme.
+# thinkbot is one Worker, not a library — its README is the documentation, and
+# a build step for a single page would be one more thing to keep working.
+# The reference documentation for the alert contract lives in clawdwatch's site.
+title: thinkbot
+description: An ops agent that triages monitoring alerts from clawdwatch
+theme: jekyll-theme-cayman
+show_downloads: false
