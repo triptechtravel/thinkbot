@@ -142,3 +142,7 @@ dist
 .wrangler
 .dev.vars
 
+
+# VitePress build output and cache
+docs/.vitepress/dist
+docs/.vitepress/cache

@@ -1,0 +1,220 @@
+/*
+ * Shared theme for clawdwatch and thinkbot.
+ *
+ * Keep this file identical in both repositories — the two sites are companion
+ * documentation and are meant to read as one system.
+ *
+ * One rule governs the palette: colour means status. The four hues below are
+ * the CheckStatus enum, used only where they carry that meaning. Nothing is
+ * coloured for decoration, which is why the chrome is ink and slate throughout.
+ */
+
+:root {
+  /* Status — the only colours with meaning. */
+  --cw-healthy: #1f7a5c;
+  --cw-degraded: #b0730d;
+  --cw-unhealthy: #b03a2e;
+  --cw-unknown: #6b7c8c;
+
+  /* Chrome. */
+  --cw-ink: #16202a;
+  --cw-slate: #4a5a68;
+  --cw-line: #dde3e7;
+  --cw-paper: #f7f9fa;
+
+  --vp-font-family-base: "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+  --vp-font-family-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, monospace;
+
+  /* Brand is ink, not a hue: links and focus read as text, not as status. */
+  --vp-c-brand-1: var(--cw-ink);
+  --vp-c-brand-2: var(--cw-slate);
+  --vp-c-brand-3: var(--cw-healthy);
+  --vp-c-brand-soft: rgba(31, 122, 92, 0.12);
+
+  --vp-c-bg: #ffffff;
+  --vp-c-bg-alt: var(--cw-paper);
+  --vp-c-bg-soft: var(--cw-paper);
+  --vp-c-text-1: var(--cw-ink);
+  --vp-c-text-2: var(--cw-slate);
+  --vp-c-divider: var(--cw-line);
+  --vp-c-border: var(--cw-line);
+
+  --vp-layout-max-width: 1240px;
+  --vp-nav-height: 60px;
+}
+
+.dark {
+  --cw-healthy: #4cb391;
+  --cw-degraded: #d9a441;
+  --cw-unhealthy: #e0776a;
+  --cw-unknown: #8c9dab;
+
+  --cw-ink: #e6edf2;
+  --cw-slate: #a3b2be;
+  --cw-line: #263039;
+  --cw-paper: #131b22;
+
+  --vp-c-brand-1: var(--cw-ink);
+  --vp-c-brand-2: var(--cw-slate);
+  --vp-c-brand-3: var(--cw-healthy);
+
+  --vp-c-bg: #0d141a;
+  --vp-c-bg-alt: var(--cw-paper);
+  --vp-c-bg-soft: var(--cw-paper);
+  --vp-c-text-1: var(--cw-ink);
+  --vp-c-text-2: var(--cw-slate);
+  --vp-c-divider: var(--cw-line);
+  --vp-c-border: var(--cw-line);
+}
+
+/* ── Type ──────────────────────────────────────────────────────────────── */
+
+.VPDoc h1,
+.VPDoc h2,
+.VPDoc h3 {
+  letter-spacing: -0.015em;
+  font-weight: 600;
+}
+
+.VPDoc h1 {
+  font-size: 2.1rem;
+  line-height: 1.2;
+}
+
+/* Section headings earn a rule because they divide the document, not because
+   a rule looks nice. */
+.VPDoc h2 {
+  margin-top: 3rem;
+  padding-top: 1.4rem;
+  border-top: 1px solid var(--cw-line);
+  font-size: 1.35rem;
+}
+
+/* Mono does structural work here, not just code. */
+.VPSidebarItem .text {
+  font-size: 0.86rem;
+}
+
+.VPSidebarItem.level-0 > .item > .text {
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cw-slate);
+}
+
+.VPNavBarTitle .title {
+  font-family: var(--vp-font-family-mono);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+/* ── Signature: the run strip ──────────────────────────────────────────── */
+
+/*
+ * One mark per check run. Discrete on purpose: a five-minute cron produced
+ * five-minute samples, and a continuous line would imply data that was never
+ * collected. This is the artifact the product makes, so it opens the page
+ * instead of a tagline.
+ */
+.run-strip {
+  margin: 0 0 2rem;
+  padding: 1.25rem 1.4rem;
+  background: var(--cw-paper);
+  border: 1px solid var(--cw-line);
+  border-radius: 6px;
+}
+
+.run-strip-label {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cw-slate);
+  margin-bottom: 0.7rem;
+}
+
+.run-strip-marks {
+  display: flex;
+  gap: 3px;
+  align-items: flex-end;
+  height: 34px;
+}
+
+.run-strip-marks i {
+  flex: 1 1 0;
+  min-width: 2px;
+  border-radius: 1px;
+  background: var(--cw-healthy);
+  height: 100%;
+}
+
+.run-strip-marks i[data-state="degraded"] {
+  background: var(--cw-degraded);
+  height: 68%;
+}
+.run-strip-marks i[data-state="unhealthy"] {
+  background: var(--cw-unhealthy);
+  height: 42%;
+}
+.run-strip-marks i[data-state="unknown"] {
+  background: var(--cw-unknown);
+  opacity: 0.45;
+  height: 24%;
+}
+
+.run-strip-note {
+  margin-top: 0.8rem;
+  font-size: 0.84rem;
+  color: var(--cw-slate);
+}
+
+.run-strip-note b {
+  color: var(--cw-unhealthy);
+  font-weight: 600;
+}
+
+/* ── Quiet everything else ─────────────────────────────────────────────── */
+
+.VPDoc .custom-block {
+  border-radius: 6px;
+  border-left-width: 3px;
+}
+
+.vp-doc table {
+  display: table;
+  width: 100%;
+  font-size: 0.9rem;
+}
+
+.vp-doc th {
+  font-family: var(--vp-font-family-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cw-slate);
+  font-weight: 500;
+}
+
+.vp-doc a {
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+/* The quality floor, not a feature. */
+:focus-visible {
+  outline: 2px solid var(--cw-healthy);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

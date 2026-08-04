@@ -59,4 +59,4 @@ message — these land in a channel under an incident someone is trying to read.
 ## Security
 
 Please report vulnerabilities through a private advisory rather than a public
-issue. See [SECURITY.md](./SECURITY.md).
+issue. See [SECURITY.md](https://github.com/triptechtravel/thinkbot/blob/main/SECURITY.md).
