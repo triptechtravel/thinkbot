@@ -1,0 +1,147 @@
+/**
+ * Sentry and Rollbar — "did a new exception appear at the same moment?"
+ *
+ * The two error trackers share a shape, so they share a file. What matters
+ * for correlation is not the whole issue list but the ones that are *new* or
+ * *regressed* inside the failure window: an exception that has been firing all
+ * week is unlikely to explain an outage that started twenty minutes ago.
+ */
+
+import { tool } from 'ai';
+import { z } from 'zod';
+import { clip, fetchJson, NotConfiguredError, since } from './shared';
+
+// ── Sentry ───────────────────────────────────────────────────────────────
+
+interface SentryIssue {
+  id: string;
+  title: string;
+  culprit: string | null;
+  count: string;
+  userCount: number;
+  firstSeen: string;
+  lastSeen: string;
+  level: string;
+  permalink: string;
+  status: string;
+}
+
+export function sentryTools(env: Env) {
+  // Lazy for the same reason as the token: an unset org must not become the
+  // string "undefined" in a Sentry URL.
+  function org(): string {
+    if (!env.SENTRY_ORG) throw new NotConfiguredError('Sentry', 'SENTRY_ORG');
+    return env.SENTRY_ORG;
+  }
+
+  return {
+    sentryIssues: tool({
+      description:
+        'Sentry issues seen recently for a project, newest first. Use after a failure to check whether a new exception appeared at the same time. An issue that first appeared inside the failure window is far more interesting than a long-standing one.',
+      inputSchema: z.object({
+        project: z
+          .string()
+          .describe('Sentry project slug, as it appears in the Sentry URL'),
+        withinMinutes: z.number().optional().describe('Default 120.'),
+        onlyNew: z
+          .boolean()
+          .optional()
+          .describe('Only issues first seen inside the window. Default true.'),
+      }),
+      execute: async ({ project, withinMinutes = 120, onlyNew = true }) => {
+        if (!env.SENTRY_TOKEN) throw new NotConfiguredError('Sentry', 'SENTRY_TOKEN');
+        const cutoff = since(withinMinutes);
+
+        const issues = await fetchJson<SentryIssue[]>(
+          `https://sentry.io/api/0/projects/${org()}/${project}/issues/?statsPeriod=24h&query=${encodeURIComponent('is:unresolved')}&limit=25`,
+          { headers: { Authorization: `Bearer ${env.SENTRY_TOKEN}` } },
+          'Sentry issues',
+        );
+
+        const rows = issues
+          .filter((i) => i.lastSeen >= cutoff)
+          .filter((i) => !onlyNew || i.firstSeen >= cutoff)
+          .map((i) => ({
+            title: clip(i.title, 140),
+            culprit: clip(i.culprit, 100),
+            level: i.level,
+            events: Number(i.count),
+            users: i.userCount,
+            firstSeen: i.firstSeen,
+            lastSeen: i.lastSeen,
+            url: i.permalink,
+          }));
+
+        return {
+          project,
+          windowMinutes: withinMinutes,
+          issues: rows.slice(0, 10),
+          note:
+            rows.length === 0
+              ? onlyNew
+                ? 'No new issues in this window — the cause is probably not a fresh exception.'
+                : 'No activity in this window.'
+              : undefined,
+        };
+      },
+    }),
+  };
+}
+
+// ── Rollbar ──────────────────────────────────────────────────────────────
+
+interface RollbarItem {
+  id: number;
+  counter: number;
+  title: string;
+  level: string;
+  environment: string;
+  total_occurrences: number;
+  first_occurrence_timestamp: number;
+  last_occurrence_timestamp: number;
+  status: string;
+}
+
+export function rollbarTools(env: Env) {
+  return {
+    rollbarItems: tool({
+      description:
+        'Recent Rollbar items for the legacy applications, newest activity first. Same purpose as sentryIssues: find an error that started when the failure did.',
+      inputSchema: z.object({
+        withinMinutes: z.number().optional().describe('Default 120.'),
+        onlyNew: z
+          .boolean()
+          .optional()
+          .describe('Only items first seen inside the window. Default true.'),
+      }),
+      execute: async ({ withinMinutes = 120, onlyNew = true }) => {
+        if (!env.ROLLBAR_TOKEN) throw new NotConfiguredError('Rollbar', 'ROLLBAR_TOKEN');
+        const cutoffSeconds = Math.floor((Date.now() - withinMinutes * 60_000) / 1000);
+
+        const data = await fetchJson<{ result: { items: RollbarItem[] } }>(
+          'https://api.rollbar.com/api/1/items/?status=active&limit=25',
+          { headers: { 'X-Rollbar-Access-Token': env.ROLLBAR_TOKEN } },
+          'Rollbar items',
+        );
+
+        const rows = (data.result?.items ?? [])
+          .filter((i) => i.last_occurrence_timestamp >= cutoffSeconds)
+          .filter((i) => !onlyNew || i.first_occurrence_timestamp >= cutoffSeconds)
+          .map((i) => ({
+            title: clip(i.title, 140),
+            level: i.level,
+            environment: i.environment,
+            occurrences: i.total_occurrences,
+            firstSeen: new Date(i.first_occurrence_timestamp * 1000).toISOString(),
+            lastSeen: new Date(i.last_occurrence_timestamp * 1000).toISOString(),
+          }));
+
+        return {
+          windowMinutes: withinMinutes,
+          items: rows.slice(0, 10),
+          note: rows.length === 0 ? 'No matching Rollbar activity in this window.' : undefined,
+        };
+      },
+    }),
+  };
+}
