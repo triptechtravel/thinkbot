@@ -162,4 +162,5 @@ Scaffolded from [cloudflare/agents-starter](https://github.com/cloudflare/agents
 
 ## License
 
-Apache-2.0. See [LICENSE](./LICENSE).
+Apache-2.0. See [LICENSE](./LICENSE), and [NOTICE](./NOTICE) for the
+agents-starter attribution the scaffold carries.
