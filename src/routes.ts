@@ -170,8 +170,23 @@ export async function triageE2eReport(
   const channel = env.SLACK_ALERT_CHANNEL ?? "";
   const headline = e2eHeadline(report);
 
-  // Triage is best-effort. A model failure must not swallow the headline, so
-  // the finding is resolved to a string before anything is posted.
+  if (!canPost(env)) {
+    console.log("[e2e]", headline);
+    return;
+  }
+
+  // The headline goes out BEFORE triage, not with it. Triage is a model turn
+  // with tool calls; it can be slow enough that the runtime tears down the
+  // waitUntil before it finishes, and then a combined message is never sent at
+  // all. That is not theoretical — it is what happened the first time this ran
+  // against a real report: 200 to the caller, no error, and silence in Slack,
+  // while the probe (whose turn returns immediately) posted fine. Ordering it
+  // this way makes the floor real: the worst case is a headline with no
+  // explanation, never an explanation nobody receives.
+  await postSlack(env, channel, headline).catch((err) =>
+    console.error("[e2e] posting the headline failed:", err)
+  );
+
   const finding = await runOpsTurn(env, e2eToPrompt(report))
     .then((result) =>
       !result.text || /^nothing\.?$/i.test(result.text) ? "" : result.text
@@ -181,14 +196,10 @@ export async function triageE2eReport(
       return "";
     });
 
-  if (!canPost(env)) {
-    console.log("[e2e]", headline, finding);
-    return;
-  }
+  if (!finding) return;
 
-  const text = finding ? `${headline}\n${finding}` : headline;
-  await postSlack(env, channel, text).catch((err) =>
-    console.error("[e2e] posting failed:", err)
+  await postSlack(env, channel, finding).catch((err) =>
+    console.error("[e2e] posting the finding failed:", err)
   );
 }
 

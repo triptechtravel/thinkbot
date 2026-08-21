@@ -164,5 +164,5 @@ Scaffolded from [cloudflare/agents-starter](https://github.com/cloudflare/agents
 
 ## License
 
-MIT. See [LICENSE](./LICENSE), which also carries the agents-starter notice
-the scaffold came with.
+MIT. See [LICENSE](./LICENSE), and [NOTICE](./NOTICE) for the agents-starter
+notice the scaffold came with.
