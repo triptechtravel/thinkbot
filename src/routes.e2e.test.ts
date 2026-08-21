@@ -18,7 +18,7 @@ vi.mock("./channels/slack", () => ({
 }));
 vi.mock("./agent-ops", () => ({ runOpsTurn }));
 
-const { triageE2eReport } = await import("./routes");
+const { announceE2eFailure, triageE2eReport } = await import("./routes");
 
 const env = {
   SLACK_WEBHOOK_URL: "https://hooks.slack.test/x"
@@ -37,63 +37,58 @@ beforeEach(() => {
   });
 });
 
-describe("triageE2eReport", () => {
-  /**
-   * The ordering is the whole guarantee. Triage is a model turn that can
-   * outlive the request's waitUntil budget; posting the headline afterwards
-   * means a slow turn swallows the alert entirely, which is exactly what
-   * happened the first time this ran against a real report.
-   */
-  it("posts the headline before triage has run", async () => {
-    let headlineSeen = false;
-    runOpsTurn.mockImplementation(async () => {
-      headlineSeen = postSlack.mock.calls.length > 0;
-      return { text: "a finding" };
-    });
-
-    await triageE2eReport(env, report);
-    expect(headlineSeen).toBe(true);
-  });
-
-  it("posts the finding as a second message", async () => {
-    await triageE2eReport(env, report);
-    expect(postSlack).toHaveBeenCalledTimes(2);
-    expect(postSlack.mock.calls[1][2]).toContain("theme cookie");
-  });
-
-  it("still posts the headline when triage throws", async () => {
-    runOpsTurn.mockRejectedValue(new Error("model exploded"));
-    await triageE2eReport(env, report);
+/**
+ * The two halves are separate functions because they run in different places:
+ * the headline in the request that received the report, the triage turn on the
+ * queue. The split is the guarantee — a queue that is unavailable, backed up,
+ * or unbound delays the explanation and never the alert.
+ */
+describe("announceE2eFailure", () => {
+  it("posts the headline and runs no model turn", async () => {
+    await announceE2eFailure(env, report);
     expect(postSlack).toHaveBeenCalledTimes(1);
     expect(postSlack.mock.calls[0][2]).toContain("E2E");
-  });
-
-  it("says nothing extra when triage found nothing", async () => {
-    runOpsTurn.mockResolvedValue({ text: "NOTHING" });
-    await triageE2eReport(env, report);
-    expect(postSlack).toHaveBeenCalledTimes(1);
-  });
-
-  /** A failed headline delivery must not take the finding down with it. */
-  it("still posts the finding when the headline fails to deliver", async () => {
-    postSlack.mockRejectedValueOnce(new Error("slack 500"));
-    await triageE2eReport(env, report);
-    expect(postSlack).toHaveBeenCalledTimes(2);
+    expect(runOpsTurn).not.toHaveBeenCalled();
   });
 
   it("logs instead of posting when no channel is configured", async () => {
-    await triageE2eReport({} as Env, report);
+    await announceE2eFailure({} as Env, report);
     expect(postSlack).not.toHaveBeenCalled();
-    expect(runOpsTurn).not.toHaveBeenCalled();
+  });
+
+  /** A Slack outage must not take the inbox's 200 down with it. */
+  it("does not throw when Slack rejects the post", async () => {
+    postSlack.mockRejectedValueOnce(new Error("slack 500"));
+    await expect(announceE2eFailure(env, report)).resolves.toBeUndefined();
   });
 });
 
-describe("triageE2eReport when triage never returns", () => {
+describe("triageE2eReport", () => {
+  it("posts the finding on its own, not repeating the headline", async () => {
+    await triageE2eReport(env, report);
+    expect(postSlack).toHaveBeenCalledTimes(1);
+    expect(postSlack.mock.calls[0][2]).toContain("theme cookie");
+    expect(postSlack.mock.calls[0][2]).not.toContain("E2E:");
+  });
+
+  it("says nothing when triage found nothing", async () => {
+    runOpsTurn.mockResolvedValue({ text: "NOTHING" });
+    await triageE2eReport(env, report);
+    expect(postSlack).not.toHaveBeenCalled();
+  });
+
+  it("says nothing when the turn throws", async () => {
+    runOpsTurn.mockRejectedValue(new Error("model exploded"));
+    await expect(triageE2eReport(env, report)).resolves.toBeUndefined();
+    expect(postSlack).not.toHaveBeenCalled();
+  });
+
   /**
-   * A hang leaves no error and no message. Bounding the wait is what turns
-   * that into something a log can show.
+   * A turn that runs to the platform limit is killed with no trace. Losing
+   * this race leaves a log line, which is the difference between "found
+   * nothing" and "never finished".
    */
-  it("gives up on a turn that never resolves, keeping the headline", async () => {
+  it("gives up on a turn that never resolves, and says so", async () => {
     vi.useFakeTimers();
     runOpsTurn.mockImplementation(() => new Promise(() => {}));
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
@@ -102,7 +97,7 @@ describe("triageE2eReport when triage never returns", () => {
     await vi.advanceTimersByTimeAsync(120_000);
     await done;
 
-    expect(postSlack).toHaveBeenCalledTimes(1);
+    expect(postSlack).not.toHaveBeenCalled();
     expect(errors).toHaveBeenCalledWith(
       "[e2e] triage did not finish within",
       120_000,

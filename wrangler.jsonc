@@ -11,6 +11,29 @@
   // Without logs the only symptom is a message that never arrives.
   "observability": { "enabled": true },
 
+  // Triage runs here, not in a waitUntil. A waitUntil gets about thirty
+  // seconds after the response, and a tool-calling turn regularly needs more —
+  // the runtime was cancelling them outright, with no error and no message.
+  //
+  // Create with: wrangler queues create thinkbot-triage
+  "queues": {
+    "producers": [{ "queue": "thinkbot-triage", "binding": "TRIAGE_QUEUE" }],
+    "consumers": [
+      {
+        // One job at a time: batching would only make a slow turn wait behind
+        // another slow turn, and each job posts on its own.
+        "queue": "thinkbot-triage",
+        "max_batch_size": 1,
+        "max_batch_timeout": 0,
+        // Retries are off deliberately. A retried turn may already have posted
+        // its finding, so retrying risks a duplicate explanation under an
+        // incident someone is reading.
+        "max_retries": 0,
+        "dead_letter_queue": "thinkbot-triage-dlq"
+      }
+    ]
+  },
+
   // No public surface. thinkbot holds a GitHub PAT, Datadog and Sentry keys,
   // and write access to monitoring incidents. Inbound traffic is signed
   // webhooks only (Slack, Telegram, clawdwatch), each verified before any

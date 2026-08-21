@@ -41,6 +41,15 @@ export interface ThinkbotEnv {
    */
   E2E_WEBHOOK_SECRET?: string;
 
+  // ── Triage ───────────────────────────────────────────────────────────
+  /**
+   * Where triage turns run. Optional so an unbound deployment degrades to
+   * logging the job rather than failing the inbox that received it — but a
+   * deployment without it does no triage at all, which is why the absence is
+   * logged loudly.
+   */
+  TRIAGE_QUEUE?: Queue<import("./triage-queue").TriageJob>;
+
   /**
    * Free-form notes about this deployment's estate, appended to the system
    * prompt: which repositories matter, what the Sentry projects are called,

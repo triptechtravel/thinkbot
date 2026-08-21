@@ -8,6 +8,7 @@
 
 import type { AlertEvent } from "clawdwatch";
 import { runOpsTurn } from "./agent-ops";
+import { enqueueTriage } from "./triage-queue";
 import {
   parseTelegramUpdate,
   telegramConfigured,
@@ -124,10 +125,11 @@ export async function handleMonitoringAlert(
     return new Response("bad request", { status: 400 });
   }
 
-  ctx.waitUntil(triageAlert(env, event));
-
   // Acknowledge immediately: clawdwatch records delivery outcomes, and a slow
-  // response here would show up there as a failure.
+  // response here would show up there as a failure. The turn itself runs on
+  // the queue, which has minutes rather than the thirty seconds a waitUntil
+  // gets after the response.
+  ctx.waitUntil(enqueueTriage(env, { kind: "alert", event }));
   return new Response("ok");
 }
 
@@ -153,7 +155,10 @@ export async function handleE2eReport(
   // discovering there is nothing to triage.
   if (!isE2eReport(report)) return new Response("bad request", { status: 400 });
 
-  ctx.waitUntil(triageE2eReport(env, report));
+  // Say what failed before returning: one Slack call, and it means the alert
+  // does not depend on the queue. The explanation follows from the consumer.
+  await announceE2eFailure(env, report);
+  ctx.waitUntil(enqueueTriage(env, { kind: "e2e", report }));
 
   // Acknowledge before triaging. A CI job should not sit waiting on an LLM
   // turn, and a slow answer here would read as a failed notification.
@@ -170,11 +175,10 @@ export async function handleE2eReport(
  * nights before. The headline is the floor; the triage paragraph is the value
  * added on top of it.
  */
-export async function triageE2eReport(
+export async function announceE2eFailure(
   env: Env,
   report: E2eReport
 ): Promise<void> {
-  const channel = env.SLACK_ALERT_CHANNEL ?? "";
   const headline = e2eHeadline(report);
 
   if (!canPost(env)) {
@@ -182,36 +186,59 @@ export async function triageE2eReport(
     return;
   }
 
-  // The headline goes out BEFORE triage, not with it. Triage is a model turn
-  // with tool calls; it can be slow enough that the runtime tears down the
-  // waitUntil before it finishes, and then a combined message is never sent at
-  // all. That is not theoretical — it is what happened the first time this ran
-  // against a real report: 200 to the caller, no error, and silence in Slack,
-  // while the probe (whose turn returns immediately) posted fine. Ordering it
-  // this way makes the floor real: the worst case is a headline with no
-  // explanation, never an explanation nobody receives.
-  await postSlack(env, channel, headline).catch((err) =>
+  // Posted in the request itself, not from the queue. It is a single Slack
+  // call, so it costs the caller milliseconds, and it means the alert does not
+  // depend on the queue being healthy — a backed-up or unbound queue delays
+  // the explanation, never the fact that something failed.
+  await postSlack(env, env.SLACK_ALERT_CHANNEL ?? "", headline).catch((err) =>
     console.error("[e2e] posting the headline failed:", err)
   );
+}
 
-  // Bound the turn. A triage that never returns leaves no trace at all — the
-  // response went out long ago and there is no error to log — so the only
-  // symptom is a headline with no explanation and no way to tell whether the
-  // model found nothing or never finished. Losing the race does not stop the
-  // turn; it just means the outcome is recorded either way.
-  const finding = await Promise.race([
-    runOpsTurn(env, e2eToPrompt(report))
+/**
+ * The triage half of the e2e path, run from the queue consumer.
+ *
+ * Posts only the finding: `announceE2eFailure` has already said what failed,
+ * and repeating it under an explanation reads as two incidents.
+ */
+export async function triageE2eReport(
+  env: Env,
+  report: E2eReport
+): Promise<void> {
+  const finding = await runTriageTurn(env, e2eToPrompt(report), "e2e");
+  if (!finding) return;
+
+  await postSlack(env, env.SLACK_ALERT_CHANNEL ?? "", finding).catch((err) =>
+    console.error("[e2e] posting the finding failed:", err)
+  );
+}
+
+/**
+ * One triage turn, bounded and reduced to "something worth posting, or not".
+ *
+ * The bound is smaller than the consumer's own budget on purpose. A turn that
+ * runs to the platform limit is killed with no trace at all; one that loses
+ * this race leaves a log line saying so, which is the difference between
+ * "found nothing" and "never finished".
+ */
+async function runTriageTurn(
+  env: Env,
+  prompt: string,
+  label: string
+): Promise<string> {
+  return Promise.race([
+    runOpsTurn(env, prompt)
       .then((result) =>
         !result.text || /^nothing\.?$/i.test(result.text) ? "" : result.text
       )
       .catch((err) => {
-        console.error("[e2e] triage failed:", err);
+        console.error(`[${label}] triage failed:`, err);
         return "";
       }),
     new Promise<string>((resolve) =>
       setTimeout(() => {
         console.error(
-          "[e2e] triage did not finish within",
+          `[${label}] triage did not finish within`,
           TRIAGE_TIMEOUT_MS,
           "ms"
         );
@@ -219,12 +246,6 @@ export async function triageE2eReport(
       }, TRIAGE_TIMEOUT_MS)
     )
   ]);
-
-  if (!finding) return;
-
-  await postSlack(env, channel, finding).catch((err) =>
-    console.error("[e2e] posting the finding failed:", err)
-  );
 }
 
 /**
@@ -243,22 +264,22 @@ export async function triageE2eReport(
  * better than posting filler under an incident someone is trying to read.
  */
 export async function triageAlert(env: Env, event: AlertEvent): Promise<void> {
-  const channel = env.SLACK_ALERT_CHANNEL ?? "";
-  const result = await runOpsTurn(env, alertToPrompt(event));
-
   // The prompt asks for the bare word NOTHING when triage came up empty.
-  if (!result.text || /^nothing\.?$/i.test(result.text)) {
+  const finding = await runTriageTurn(env, alertToPrompt(event), "alert");
+  if (!finding) {
     console.log("[alert] triage found nothing to report");
     return;
   }
 
   if (!canPost(env)) {
-    console.log("[alert] triage:", result.text);
+    console.log("[alert] triage:", finding);
     return;
   }
 
   const label = "check" in event ? event.check.name : "monitoring";
-  await postSlack(env, channel, `*${label}* — ${result.text}`).catch((err) =>
-    console.error("[alert] analysis failed:", err)
-  );
+  await postSlack(
+    env,
+    env.SLACK_ALERT_CHANNEL ?? "",
+    `*${label}* — ${finding}`
+  ).catch((err) => console.error("[alert] analysis failed:", err));
 }
