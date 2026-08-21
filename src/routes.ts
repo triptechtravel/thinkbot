@@ -36,6 +36,13 @@ import {
 } from "./hooks/e2e";
 
 const unauthorized = () => new Response("unauthorized", { status: 401 });
+
+/**
+ * How long a triage turn gets before its silence is recorded as such. Generous
+ * — a turn that makes several tool calls is legitimately slow — but finite, so
+ * a hang is a log line rather than nothing at all.
+ */
+const TRIAGE_TIMEOUT_MS = 120_000;
 const notConfigured = () => new Response("not configured", { status: 404 });
 
 export async function handleTelegram(
@@ -187,14 +194,31 @@ export async function triageE2eReport(
     console.error("[e2e] posting the headline failed:", err)
   );
 
-  const finding = await runOpsTurn(env, e2eToPrompt(report))
-    .then((result) =>
-      !result.text || /^nothing\.?$/i.test(result.text) ? "" : result.text
+  // Bound the turn. A triage that never returns leaves no trace at all — the
+  // response went out long ago and there is no error to log — so the only
+  // symptom is a headline with no explanation and no way to tell whether the
+  // model found nothing or never finished. Losing the race does not stop the
+  // turn; it just means the outcome is recorded either way.
+  const finding = await Promise.race([
+    runOpsTurn(env, e2eToPrompt(report))
+      .then((result) =>
+        !result.text || /^nothing\.?$/i.test(result.text) ? "" : result.text
+      )
+      .catch((err) => {
+        console.error("[e2e] triage failed:", err);
+        return "";
+      }),
+    new Promise<string>((resolve) =>
+      setTimeout(() => {
+        console.error(
+          "[e2e] triage did not finish within",
+          TRIAGE_TIMEOUT_MS,
+          "ms"
+        );
+        resolve("");
+      }, TRIAGE_TIMEOUT_MS)
     )
-    .catch((err) => {
-      console.error("[e2e] triage failed:", err);
-      return "";
-    });
+  ]);
 
   if (!finding) return;
 

@@ -87,3 +87,29 @@ describe("triageE2eReport", () => {
     expect(runOpsTurn).not.toHaveBeenCalled();
   });
 });
+
+describe("triageE2eReport when triage never returns", () => {
+  /**
+   * A hang leaves no error and no message. Bounding the wait is what turns
+   * that into something a log can show.
+   */
+  it("gives up on a turn that never resolves, keeping the headline", async () => {
+    vi.useFakeTimers();
+    runOpsTurn.mockImplementation(() => new Promise(() => {}));
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const done = triageE2eReport(env, report);
+    await vi.advanceTimersByTimeAsync(120_000);
+    await done;
+
+    expect(postSlack).toHaveBeenCalledTimes(1);
+    expect(errors).toHaveBeenCalledWith(
+      "[e2e] triage did not finish within",
+      120_000,
+      "ms"
+    );
+
+    errors.mockRestore();
+    vi.useRealTimers();
+  });
+});
