@@ -33,6 +33,15 @@ export interface ThinkbotEnv {
   CF_ACCESS_CLIENT_ID?: string;
   CF_ACCESS_CLIENT_SECRET?: string;
 
+  // ── CI ───────────────────────────────────────────────────────────────
+  /**
+   * Shared secret a CI runner signs its end-to-end test reports with. Separate
+   * from MONITORING_WEBHOOK_SECRET on purpose: a GitHub runner is a different
+   * sender in a different trust domain from the monitoring Worker, and leaking
+   * one key must not grant the other.
+   */
+  E2E_WEBHOOK_SECRET?: string;
+
   /**
    * Free-form notes about this deployment's estate, appended to the system
    * prompt: which repositories matter, what the Sentry projects are called,
@@ -72,16 +81,16 @@ export interface ThinkbotEnv {
 }
 
 /** Default model. Chosen for tool calling; override with MODEL. */
-export const DEFAULT_MODEL = '@cf/openai/gpt-oss-120b';
+export const DEFAULT_MODEL = "@cf/openai/gpt-oss-120b";
 
 /** Session id used for alerts, so triage shares one continuous history. */
-export const OPS_SESSION = 'ops';
+export const OPS_SESSION = "ops";
 
 export function allowedTelegramChats(env: Env): Set<string> {
   return new Set(
-    (env.TELEGRAM_ALLOWED_CHATS ?? '')
-      .split(',')
+    (env.TELEGRAM_ALLOWED_CHATS ?? "")
+      .split(",")
       .map((s) => s.trim())
-      .filter(Boolean),
+      .filter(Boolean)
   );
 }

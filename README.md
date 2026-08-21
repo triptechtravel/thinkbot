@@ -52,6 +52,49 @@ clawdwatch's own `verifySignature` rather than a local reimplementation.
 An RPC call carries no signature — authenticity comes from the binding — so the
 shared triage path never assumes one was checked.
 
+## How it receives failing test runs
+
+`POST /hooks/e2e` takes a signed report from a CI runner when an end-to-end
+suite fails, and triages it the same way. A service binding is not an option
+here: bindings are same-account only and a GitHub runner is not on the account,
+so this path is HMAC over `timestamp.body` under `x-thinkbot-signature` and
+`x-thinkbot-timestamp`, keyed by `E2E_WEBHOOK_SECRET` — a different key from
+the monitoring inbox, because a CI runner is a different sender in a different
+trust domain.
+
+The payload is deliberately not a clawdwatch `AlertEvent`. A test run is not a
+synthetic check: there is no incident to annotate and no signed links to act
+on. It carries the repository, the commit, the run URL, and the failures the
+reporter saw:
+
+```json
+{
+  "schemaVersion": 1,
+  "repo": "owner/repo",
+  "sha": "d0812c0d",
+  "ref": "main",
+  "trigger": "schedule",
+  "baseUrl": "https://example.com",
+  "runUrl": "https://github.com/owner/repo/actions/runs/1",
+  "loadError": null,
+  "failures": [{ "title": "…", "projects": ["desktop-chrome"], "error": "…" }],
+  "passed": 65,
+  "skipped": 5
+}
+```
+
+The split is the point: the runner holds evidence no Worker can reach — which
+specs failed and what they asserted — and thinkbot holds the credentials the
+runner should not, and answers what changed around that commit.
+
+`loadError` with no failures is a distinct incident: the suite never ran, so it
+says nothing about whether the site is healthy. Reporting that as "0 tests
+failed" is how a real two-night outage read as noise.
+
+**This path always posts**, unlike monitoring triage. There is no second
+notifier behind it, so silence would mean a failing nightly suite disappears.
+The headline is the floor; the triage paragraph is what is added on top.
+
 ## What it can look at
 
 | Source | Used for |

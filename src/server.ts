@@ -16,6 +16,7 @@ import { datadogTools } from "./tools/datadog";
 import { rollbarTools, sentryTools } from "./tools/errors";
 import { opsSystemPrompt } from "./agent-ops";
 import {
+  handleE2eReport,
   handleMonitoringAlert,
   handleSlack,
   handleTelegram,
@@ -90,12 +91,6 @@ If the user asks to be reminded or wants something done later, use the schedule 
         ...datadogTools(this.env),
         ...sentryTools(this.env),
         ...rollbarTools(this.env),
-
-
-
-
-
-
 
         scheduleTask: tool({
           description:
@@ -204,11 +199,13 @@ export default {
     // Channels and hooks are plain routes, checked before the agent router so
     // they never depend on its path conventions.
     if (request.method === "POST") {
-      if (pathname === "/hooks/telegram") return handleTelegram(request, env, ctx);
+      if (pathname === "/hooks/telegram")
+        return handleTelegram(request, env, ctx);
       if (pathname === "/hooks/slack") return handleSlack(request, env, ctx);
       if (pathname === "/hooks/clawdwatch") {
         return handleMonitoringAlert(request, env, ctx);
       }
+      if (pathname === "/hooks/e2e") return handleE2eReport(request, env, ctx);
     }
 
     if (pathname === "/health") {

@@ -108,6 +108,26 @@ notifiers: [
 ]
 ```
 
+## End-to-end test inbox
+
+A CI runner reporting a failed Playwright suite signs the same way, with its
+own key — a runner is a different sender in a different trust domain, and
+leaking one key must not grant the other. Bindings are not available to it:
+they are same-account only, and a GitHub runner is not on the account.
+
+```bash
+# here
+wrangler secret put E2E_WEBHOOK_SECRET
+
+# in the repository whose suite reports (GitHub)
+gh secret set E2E_WEBHOOK_SECRET --repo owner/repo   # the same value
+```
+
+The runner POSTs to `https://thinkbot.<host>/hooks/e2e` with
+`x-thinkbot-signature: sha256=<hmac>` over `<timestamp>.<body>` and
+`x-thinkbot-timestamp: <unix ms>`; see the payload shape in the README. Without
+`E2E_WEBHOOK_SECRET` the route 404s, so nothing is reachable until it is set.
+
 Keep the Slack notifier alongside it. If the agent is the only alert path, an
 agent outage is a monitoring outage — and you find out at the worst moment.
 
