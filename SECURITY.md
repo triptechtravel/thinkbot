@@ -10,11 +10,19 @@ Open a private security advisory on the repository rather than a public issue.
 
 ## Design
 
-**No public surface.** `workers_dev` and `preview_urls` are off, and the chat UI
-and agent RPC routes are deliberately not served. An unauthenticated chat
-surface would hand every credential above to anyone who found the hostname.
-Re-enabling the UI means putting the hostname behind Cloudflare Access first,
-with a bypass for `/hooks/*` — webhook senders cannot authenticate to Access.
+**No public surface.** `workers_dev` and `preview_urls` are off, there is no
+chat UI, and there is no static asset bundle. The last of those is the one
+worth stating explicitly: assets are matched *before* the Worker runs, so a
+bundle is a second way into the hostname that no route guard ever sees. While
+one was deployed it served the chat shell to any unauthenticated GET, answered
+`/health` with `index.html` rather than the handler, and — before
+`run_worker_first` — returned 405 to every signed inbox, because the asset
+handler rejects non-GET instead of falling through.
+
+Adding a UI later means putting the hostname behind Cloudflare Access first,
+with a bypass for `/hooks/*` — webhook senders cannot authenticate to Access —
+and serving it from a route rather than from assets, so it stays behind the
+same check as everything else.
 
 **Every inbound route verifies its caller before doing any work.**
 

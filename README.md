@@ -136,8 +136,10 @@ system prompt and read by a model, so plain prose is fine.
 ## Security
 
 thinkbot holds a GitHub PAT and several vendor keys. It has **no public
-surface**: `workers_dev` and `preview_urls` are off, the chat UI is deliberately
-not served, and every inbound route verifies its caller before doing any work.
+surface**: `workers_dev` and `preview_urls` are off, there is no chat UI and no
+static asset bundle, and every inbound route verifies its caller before doing
+any work. The absence of assets is deliberate — they are matched before the
+Worker runs, so a bundle answers requests that no route guard ever sees.
 
 Read [SECURITY.md](./SECURITY.md) before deploying, particularly if you plan to
 enable clawdwatch's `captureBodyOnFailure` on endpoints whose error paths can
