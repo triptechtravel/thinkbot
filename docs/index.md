@@ -96,4 +96,4 @@ sends the alerts. Its [AI agents guide](https://triptechtravel.github.io/clawdwa
 describes this integration from the sending side, including response-body
 capture and the alert payload versioning contract.
 
-Apache-2.0. [Source on GitHub](https://github.com/triptechtravel/thinkbot).
+MIT. [Source on GitHub](https://github.com/triptechtravel/thinkbot).
