@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-const postSlack = vi.fn(async () => {});
+const postSlack = vi.fn(
+  async (_env: Env, _channel: string, _text: string) => {}
+);
 const runOpsTurn = vi.fn(async () => ({
   text: "A PR merged 20 minutes before the run touched the theme cookie."
 }));
