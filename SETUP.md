@@ -191,8 +191,21 @@ npm run deploy
 ## Notes
 
 Slack retries any event not acknowledged within three seconds, and a retry
-would run the agent twice — so both channels acknowledge immediately and reply
-from `waitUntil`.
+would run the agent twice — so both channels acknowledge immediately and answer
+from the `thinkbot-triage` queue.
+
+That queue is not optional. It used to be `waitUntil`, which gets about thirty
+seconds after the response, and a turn with tool calls regularly needs more —
+the runtime cancelled them outright, so a slow question got no answer and no
+error. Create it before the first deploy:
+
+```bash
+wrangler queues create thinkbot-triage-dlq
+wrangler queues create thinkbot-triage
+```
+
+Without the binding, every inbox still accepts and acknowledges, and every turn
+is dropped with a line in the log saying so.
 
 Tool results are trimmed before reaching the model. A full status dump is
 mostly noise and you pay for every token of it on each turn.

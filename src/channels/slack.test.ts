@@ -21,11 +21,6 @@ async function sign(body: string, timestamp: string, secret = SECRET): Promise<s
   return `v0=${hex}`;
 }
 
-const env = {
-  SLACK_BOT_TOKEN: 'xoxb-test',
-  SLACK_SIGNING_SECRET: SECRET,
-} as unknown as Env;
-
 describe('verifySlackSignature', () => {
   const body = '{"type":"event_callback"}';
   const ts = String(Math.floor(NOW / 1000));
@@ -140,12 +135,12 @@ describe('parseSlackEvent', () => {
   };
 
   it('extracts the text with the mention stripped', () => {
-    const inbound = parseSlackEvent(base, env);
+    const inbound = parseSlackEvent(base);
     expect(inbound?.text).toBe('is anything down?');
   });
 
   it('threads the reply to the prompting message', () => {
-    expect(parseSlackEvent(base, env)?.sessionId).toBe('slack:C123:1700000000.000100');
+    expect(parseSlackEvent(base)?.sessionId).toBe('slack:C123:1700000000.000100');
   });
 
   it('keeps an existing thread', () => {
@@ -153,26 +148,50 @@ describe('parseSlackEvent', () => {
       ...base,
       event: { ...base.event, thread_ts: '1699999999.000001' },
     };
-    expect(parseSlackEvent(threaded, env)?.sessionId).toBe('slack:C123:1699999999.000001');
+    expect(parseSlackEvent(threaded)?.sessionId).toBe('slack:C123:1699999999.000001');
+  });
+
+  /**
+   * The session id only implies where the answer goes. The target decides it,
+   * and it is what travels through the queue, so assert on it directly.
+   */
+  it('addresses the answer to the channel and thread', () => {
+    expect(parseSlackEvent(base)?.target).toEqual({
+      channel: 'slack',
+      conversation: 'C123',
+      threadTs: '1700000000.000100',
+    });
+  });
+
+  it('addresses an answer in an existing thread to that thread', () => {
+    const threaded = {
+      ...base,
+      event: { ...base.event, thread_ts: '1699999999.000001' },
+    };
+    expect(parseSlackEvent(threaded)?.target).toEqual({
+      channel: 'slack',
+      conversation: 'C123',
+      threadTs: '1699999999.000001',
+    });
   });
 
   it('ignores its own messages, so the bot cannot talk to itself', () => {
     const fromBot = { ...base, event: { ...base.event, bot_id: 'B999' } };
-    expect(parseSlackEvent(fromBot, env)).toBeNull();
+    expect(parseSlackEvent(fromBot)).toBeNull();
   });
 
   it('ignores edits and joins, which carry a subtype', () => {
     const edited = { ...base, event: { ...base.event, subtype: 'message_changed' } };
-    expect(parseSlackEvent(edited, env)).toBeNull();
+    expect(parseSlackEvent(edited)).toBeNull();
   });
 
   it('ignores a mention with no actual text', () => {
     const empty = { ...base, event: { ...base.event, text: '<@U0BOT>' } };
-    expect(parseSlackEvent(empty, env)).toBeNull();
+    expect(parseSlackEvent(empty)).toBeNull();
   });
 
   it('ignores an event type it does not handle', () => {
     const reaction = { ...base, event: { ...base.event, type: 'reaction_added' } };
-    expect(parseSlackEvent(reaction, env)).toBeNull();
+    expect(parseSlackEvent(reaction)).toBeNull();
   });
 });

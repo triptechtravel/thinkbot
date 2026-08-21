@@ -48,7 +48,7 @@ export interface ThinkbotEnv {
    * deployment without it does no triage at all, which is why the absence is
    * logged loudly.
    */
-  TRIAGE_QUEUE?: Queue<import("./triage-queue").TriageJob>;
+  TRIAGE_QUEUE?: Queue<import("./turn-queue").QueueJob>;
 
   /**
    * Free-form notes about this deployment's estate, appended to the system

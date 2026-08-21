@@ -10,7 +10,7 @@
  *      rejected, otherwise a captured request can be replayed.
  */
 
-import type { InboundMessage } from './telegram';
+import type { InboundMessage } from './reply';
 
 const SLACK_API = 'https://slack.com/api';
 const MAX_TIMESTAMP_SKEW_S = 60 * 5;
@@ -141,7 +141,7 @@ function stripMention(text: string): string {
   return text.replace(/<@[A-Z0-9]+>/g, '').trim();
 }
 
-export function parseSlackEvent(payload: SlackEvent, env: Env): InboundMessage | null {
+export function parseSlackEvent(payload: SlackEvent): InboundMessage | null {
   const event = payload.event;
   if (!event) return null;
   if (event.type !== 'app_mention' && event.type !== 'message') return null;
@@ -161,6 +161,6 @@ export function parseSlackEvent(payload: SlackEvent, env: Env): InboundMessage |
   return {
     sessionId: `slack:${event.channel}:${threadTs ?? 'main'}`,
     text,
-    reply: (reply) => postSlack(env, event.channel!, reply, threadTs),
+    target: { channel: 'slack', conversation: event.channel, threadTs },
   };
 }

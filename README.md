@@ -106,6 +106,28 @@ to announce.
 notifier behind it, so silence would mean a failing nightly suite disappears.
 The headline is the floor; the triage paragraph is what is added on top.
 
+## Where the turns run
+
+Every model turn — triage and chat replies alike — runs on a Cloudflare queue,
+not in the `waitUntil` of the request that arrived. A `waitUntil` gets about
+thirty seconds after the response; a turn that makes several tool calls
+regularly needs more, and the runtime cancels it with no error and no message.
+That failure is invisible by construction: the thing that broke is the thing
+that would have told you.
+
+Everything an inbox receives is therefore reduced to something that survives
+JSON before it is queued. That is why a reply is a `ReplyTarget` — a channel,
+a conversation, a thread — rather than the `reply()` closure it used to be.
+
+Two consequences worth knowing:
+
+- **The e2e headline is posted in the request, not from the queue.** The alert
+  should not depend on the queue being healthy; only the explanation does.
+- **Retries are off and every job is acked.** A retried turn may already have
+  posted, so retrying risks a duplicate under an incident someone is reading,
+  or the bot answering the same question twice. Failures go to the log and the
+  dead-letter queue.
+
 ## What it can look at
 
 | Source | Used for |

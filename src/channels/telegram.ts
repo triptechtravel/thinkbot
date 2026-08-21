@@ -7,6 +7,7 @@
  */
 
 import { allowedTelegramChats } from '../config';
+import type { InboundMessage } from './reply';
 
 const API = 'https://api.telegram.org';
 
@@ -54,12 +55,6 @@ export async function sendTelegram(
   }
 }
 
-export interface InboundMessage {
-  sessionId: string;
-  text: string;
-  reply: (text: string) => Promise<void>;
-}
-
 /**
  * Parse an update into something channel-agnostic, or null when there is
  * nothing to act on (edited messages, joins, a chat we do not serve).
@@ -81,6 +76,6 @@ export function parseTelegramUpdate(
   return {
     sessionId: `telegram:${chatId}`,
     text: message.text,
-    reply: (text) => sendTelegram(env, chatId, text),
+    target: { channel: 'telegram', chatId },
   };
 }

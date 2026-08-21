@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { enqueueTriage, triageQueueConfigured } from "./triage-queue";
-import type { TriageJob } from "./triage-queue";
+import { enqueueTurn, turnQueueConfigured } from "./turn-queue";
+import type { QueueJob } from "./turn-queue";
 
-const job: TriageJob = {
+const job: QueueJob = {
   kind: "e2e",
   report: { repo: "owner/repo", sha: "abc", failures: [{ title: "a test" }] }
 };
@@ -11,12 +11,12 @@ beforeEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("enqueueTriage", () => {
+describe("enqueueTurn", () => {
   it("sends the job to the queue", async () => {
     const send = vi.fn(async () => {});
     const env = { TRIAGE_QUEUE: { send } } as unknown as Env;
 
-    expect(await enqueueTriage(env, job)).toBe(true);
+    expect(await enqueueTurn(env, job)).toBe(true);
     expect(send).toHaveBeenCalledWith(job);
   });
 
@@ -36,24 +36,24 @@ describe("enqueueTriage", () => {
       }
     } as unknown as Env;
 
-    expect(await enqueueTriage(env, job)).toBe(false);
+    expect(await enqueueTurn(env, job)).toBe(false);
     expect(errors).toHaveBeenCalled();
   });
 
   it("reports failure rather than throwing when there is no binding", async () => {
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(await enqueueTriage({} as Env, job)).toBe(false);
+    expect(await enqueueTurn({} as Env, job)).toBe(false);
     expect(errors).toHaveBeenCalled();
   });
 });
 
-describe("triageQueueConfigured", () => {
+describe("turnQueueConfigured", () => {
   it("is false without a binding", () => {
-    expect(triageQueueConfigured({} as Env)).toBe(false);
+    expect(turnQueueConfigured({} as Env)).toBe(false);
   });
 
   it("is true with one", () => {
-    expect(triageQueueConfigured({ TRIAGE_QUEUE: {} } as unknown as Env)).toBe(
+    expect(turnQueueConfigured({ TRIAGE_QUEUE: {} } as unknown as Env)).toBe(
       true
     );
   });

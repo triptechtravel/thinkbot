@@ -8,7 +8,7 @@
 
 import type { AlertEvent } from "clawdwatch";
 import { runOpsTurn } from "./agent-ops";
-import { enqueueTriage } from "./triage-queue";
+import { enqueueTurn } from "./turn-queue";
 import {
   parseTelegramUpdate,
   telegramConfigured,
@@ -22,6 +22,7 @@ import {
   slackConfigured,
   verifySlackSignature
 } from "./channels/slack";
+import { sendReply, type ReplyTarget } from "./channels/reply";
 import {
   alertToPrompt,
   inboxConfigured,
@@ -62,12 +63,7 @@ export async function handleTelegram(
   // retries on non-2xx, so this must still be a 200.
   if (!inbound) return new Response("ok");
 
-  ctx.waitUntil(
-    runOpsTurn(env, inbound.text)
-      .then((result) => inbound.reply(result.text))
-      .catch((err) => console.error("[telegram] turn failed:", err))
-  );
-
+  ctx.waitUntil(enqueueTurn(env, { kind: "chat", ...inbound }));
   return new Response("ok");
 }
 
@@ -94,17 +90,12 @@ export async function handleSlack(
   const challenge = isUrlVerification(payload);
   if (challenge) return new Response(challenge);
 
-  const inbound = parseSlackEvent(payload, env);
+  const inbound = parseSlackEvent(payload);
   if (!inbound) return new Response("ok");
 
   // Slack retries anything not acknowledged within three seconds, and a retry
   // would run the agent a second time. Ack now, answer later.
-  ctx.waitUntil(
-    runOpsTurn(env, inbound.text)
-      .then((result) => inbound.reply(result.text))
-      .catch((err) => console.error("[slack] turn failed:", err))
-  );
-
+  ctx.waitUntil(enqueueTurn(env, { kind: "chat", ...inbound }));
   return new Response("ok");
 }
 
@@ -129,7 +120,7 @@ export async function handleMonitoringAlert(
   // response here would show up there as a failure. The turn itself runs on
   // the queue, which has minutes rather than the thirty seconds a waitUntil
   // gets after the response.
-  ctx.waitUntil(enqueueTriage(env, { kind: "alert", event }));
+  ctx.waitUntil(enqueueTurn(env, { kind: "alert", event }));
   return new Response("ok");
 }
 
@@ -158,7 +149,7 @@ export async function handleE2eReport(
   // Say what failed before returning: one Slack call, and it means the alert
   // does not depend on the queue. The explanation follows from the consumer.
   await announceE2eFailure(env, report);
-  ctx.waitUntil(enqueueTriage(env, { kind: "e2e", report }));
+  ctx.waitUntil(enqueueTurn(env, { kind: "e2e", report }));
 
   // Acknowledge before triaging. A CI job should not sit waiting on an LLM
   // turn, and a slow answer here would read as a failed notification.
@@ -211,6 +202,32 @@ export async function triageE2eReport(
   await postSlack(env, env.SLACK_ALERT_CHANNEL ?? "", finding).catch((err) =>
     console.error("[e2e] posting the finding failed:", err)
   );
+}
+
+/**
+ * Answer someone who asked the bot a question.
+ *
+ * Unlike triage, this always replies. A person is waiting on the other end of
+ * a thread, and silence from a bot is indistinguishable from a bot that is
+ * broken — which, until the turn moved off `waitUntil`, is what a slow question
+ * produced: no answer, no error, nothing to tell them it had even been read.
+ */
+export async function answerChat(
+  env: Env,
+  job: { sessionId: string; text: string; target: ReplyTarget }
+): Promise<void> {
+  const answer = await runOpsTurn(env, job.text)
+    .then((result) => result.text?.trim() ?? "")
+    .catch((err) => {
+      console.error("[chat] turn failed:", job.sessionId, err);
+      return "";
+    });
+
+  await sendReply(
+    env,
+    job.target,
+    answer || "I could not finish that one — nothing came back from the model."
+  ).catch((err) => console.error("[chat] reply failed:", job.sessionId, err));
 }
 
 /**

@@ -8,6 +8,7 @@
  */
 
 import {
+  answerChat,
   handleE2eReport,
   handleMonitoringAlert,
   handleSlack,
@@ -15,7 +16,7 @@ import {
   triageAlert,
   triageE2eReport
 } from "./routes";
-import { enqueueTriage, type TriageJob } from "./triage-queue";
+import { enqueueTurn, type QueueJob } from "./turn-queue";
 import { WorkerEntrypoint } from "cloudflare:workers";
 import type { AlertEvent } from "clawdwatch";
 
@@ -43,31 +44,33 @@ export class AlertInbox extends WorkerEntrypoint<Env> {
     // which gets about thirty seconds after the call returns — less than a
     // tool-calling turn often needs — so monitoring triage was being cancelled
     // silently whenever it ran long.
-    this.ctx.waitUntil(enqueueTriage(this.env, { kind: "alert", event }));
+    this.ctx.waitUntil(enqueueTurn(this.env, { kind: "alert", event }));
   }
 }
 
 export default {
   /**
-   * Where every triage turn actually runs.
+   * Where every model turn actually runs — triage and chat replies alike.
    *
    * A batch is one job (see `max_batch_size`): batching would only make a slow
    * turn wait behind another slow turn, and each job posts independently
    * anyway.
    *
    * Every job is acked, including failed ones. A retry would re-run a turn
-   * that may already have posted its finding, so the failure mode of retrying
-   * is a duplicate explanation under an incident someone is reading — worse
+   * that may already have posted its answer, so the failure mode of retrying
+   * is a duplicate — an explanation repeated under an incident someone is
+   * reading, or the bot answering the same question twice in a thread — worse
    * than the missing one it is trying to recover. Failures are logged instead.
    */
-  async queue(batch: MessageBatch<TriageJob>, env: Env) {
+  async queue(batch: MessageBatch<QueueJob>, env: Env) {
     for (const message of batch.messages) {
       const job = message.body;
       try {
         if (job.kind === "alert") await triageAlert(env, job.event);
-        else await triageE2eReport(env, job.report);
+        else if (job.kind === "e2e") await triageE2eReport(env, job.report);
+        else await answerChat(env, job);
       } catch (err) {
-        console.error("[triage] job failed:", job.kind, err);
+        console.error("[queue] job failed:", job.kind, err);
       } finally {
         message.ack();
       }
@@ -105,4 +108,4 @@ export default {
     // stays behind the same check as everything else.
     return new Response("Not found", { status: 404 });
   }
-} satisfies ExportedHandler<Env, TriageJob>;
+} satisfies ExportedHandler<Env, QueueJob>;

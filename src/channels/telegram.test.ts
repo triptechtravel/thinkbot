@@ -57,6 +57,12 @@ describe('parseTelegramUpdate', () => {
     expect(inbound?.sessionId).toBe('telegram:12345');
   });
 
+  /** The target is what travels through the queue, so assert on it directly. */
+  it('addresses the answer to the chat that asked', () => {
+    const inbound = parseTelegramUpdate(update('is anything down?'), envWith());
+    expect(inbound?.target).toEqual({ channel: 'telegram', chatId: '12345' });
+  });
+
   it('ignores an update with no text', () => {
     expect(parseTelegramUpdate({ message: undefined }, envWith())).toBeNull();
     expect(
