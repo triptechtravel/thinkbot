@@ -1,5 +1,5 @@
 import { createWorkersAI } from "workers-ai-provider";
-import { callable, routeAgentRequest, type Schedule } from "agents";
+import { callable, type Schedule } from "agents";
 import { getSchedulePrompt, scheduleSchema } from "agents/schedule";
 import { AIChatAgent, type OnChatMessageOptions } from "@cloudflare/ai-chat";
 import {
@@ -212,16 +212,16 @@ export default {
       return Response.json({ ok: true, service: "thinkbot" });
     }
 
-    // The chat UI and agent RPC are deliberately NOT served. This Worker holds
-    // a GitHub PAT, Datadog and Sentry keys, and write access to monitoring
-    // incidents; an unauthenticated chat surface would hand all of that to
-    // anyone who found the hostname. Every route above verifies its caller
-    // before doing any work.
+    // Nothing else is served. This Worker holds a GitHub PAT, Datadog and
+    // Sentry keys, and write access to monitoring incidents; a chat surface
+    // reachable by anyone who found the hostname would hand over all of it.
+    // Every route above verifies its caller before doing any work, and there
+    // is no asset bundle behind this line to answer in the Worker's place.
     //
-    // To re-enable the chat UI, put the hostname behind Cloudflare Access with
-    // a bypass policy for /hooks/* (webhook senders cannot authenticate to
-    // Access), build the client assets, then restore routeAgentRequest here.
-    void routeAgentRequest;
+    // To add a UI, put the hostname behind Cloudflare Access with a bypass
+    // policy for /hooks/* — webhook senders cannot authenticate to Access —
+    // and serve it from a route here rather than from static assets, so it
+    // stays behind the same check as everything else.
     return new Response("Not found", { status: 404 });
   }
 } satisfies ExportedHandler<Env>;

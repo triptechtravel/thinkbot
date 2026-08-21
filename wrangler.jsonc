@@ -12,30 +12,22 @@
   "observability": { "enabled": true },
 
   // No public surface. thinkbot holds a GitHub PAT, Datadog and Sentry keys,
-  // and write access to monitoring incidents — anyone reaching the chat UI
-  // could use all of it. Inbound traffic is signed webhooks only (Slack,
-  // Telegram, clawdwatch), each verified before any work happens.
+  // and write access to monitoring incidents. Inbound traffic is signed
+  // webhooks only (Slack, Telegram, clawdwatch), each verified before any
+  // work happens.
+  //
+  // There is no "assets" block, and that is load-bearing rather than an
+  // omission. Assets are matched before the Worker runs, so a static bundle
+  // is a second, unauthenticated way into this hostname that no route guard
+  // sees: it served the chat shell for any unmatched GET, answered every
+  // signed inbox with 405 because the asset handler rejects non-GET, and
+  // returned a 200 for /health that the Worker never produced. With no
+  // assets, every request reaches the code that checks callers.
   "workers_dev": false,
   "preview_urls": false,
   // Add your own hostname here, e.g.
   //   "routes": [{ "pattern": "thinkbot.example.com", "custom_domain": true }]
   // Left unset so a fork does not try to claim someone else's domain.
-  "assets": {
-    "directory": "./public",
-    "not_found_handling": "single-page-application",
-    // Static assets are tried first for everything not listed here, and the
-    // asset handler answers any non-GET request with 405 rather than falling
-    // through to the Worker. Every signed inbox is a POST, so without this
-    // line they are all unreachable — verified against the deployment: POST to
-    // /hooks/clawdwatch, /hooks/slack and /health alike returned 405, and the
-    // monitoring integration only worked because it uses the RPC binding.
-    //
-    // /health is listed for a second reason. With single-page-application
-    // fallback, an unmatched GET returns index.html with a 200 — so a health
-    // check would report the Worker healthy by reading a static page it never
-    // touched. A liveness endpoint that cannot fail is worse than none.
-    "run_worker_first": ["/agents/*", "/oauth/*", "/hooks/*", "/health"]
-  },
   "durable_objects": {
     "bindings": [
       {
