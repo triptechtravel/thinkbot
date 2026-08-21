@@ -6,6 +6,11 @@
   "compatibility_flags": ["nodejs_compat"],
   "ai": { "binding": "AI", "remote": true },
 
+  // Triage runs in waitUntil after the response has gone out, so a failure
+  // there is invisible from the caller's side — it answers 200 either way.
+  // Without logs the only symptom is a message that never arrives.
+  "observability": { "enabled": true },
+
   // No public surface. thinkbot holds a GitHub PAT, Datadog and Sentry keys,
   // and write access to monitoring incidents — anyone reaching the chat UI
   // could use all of it. Inbound traffic is signed webhooks only (Slack,
@@ -24,7 +29,12 @@
     // line they are all unreachable — verified against the deployment: POST to
     // /hooks/clawdwatch, /hooks/slack and /health alike returned 405, and the
     // monitoring integration only worked because it uses the RPC binding.
-    "run_worker_first": ["/agents/*", "/oauth/*", "/hooks/*"]
+    //
+    // /health is listed for a second reason. With single-page-application
+    // fallback, an unmatched GET returns index.html with a 200 — so a health
+    // check would report the Worker healthy by reading a static page it never
+    // touched. A liveness endpoint that cannot fail is worse than none.
+    "run_worker_first": ["/agents/*", "/oauth/*", "/hooks/*", "/health"]
   },
   "durable_objects": {
     "bindings": [
