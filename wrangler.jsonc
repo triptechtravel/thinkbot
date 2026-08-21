@@ -18,7 +18,13 @@
   "assets": {
     "directory": "./public",
     "not_found_handling": "single-page-application",
-    "run_worker_first": ["/agents/*", "/oauth/*"]
+    // Static assets are tried first for everything not listed here, and the
+    // asset handler answers any non-GET request with 405 rather than falling
+    // through to the Worker. Every signed inbox is a POST, so without this
+    // line they are all unreachable — verified against the deployment: POST to
+    // /hooks/clawdwatch, /hooks/slack and /health alike returned 405, and the
+    // monitoring integration only worked because it uses the RPC binding.
+    "run_worker_first": ["/agents/*", "/oauth/*", "/hooks/*"]
   },
   "durable_objects": {
     "bindings": [
