@@ -9,9 +9,8 @@
 
 /**
  * Augments the Wrangler-generated global `Env` rather than shadowing it, so
- * `this.env` inside the agent and the env passed to routes are the same type.
- * Bindings (AI, ChatAgent) come from env.d.ts; everything here is vars and
- * secrets.
+ * the env passed to routes, tools and the RPC entrypoint is one type.
+ * Bindings (AI) come from env.d.ts; everything here is vars and secrets.
  */
 declare global {
   interface Env extends ThinkbotEnv {}

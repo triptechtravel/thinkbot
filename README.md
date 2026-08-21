@@ -14,8 +14,11 @@ not support a cause, it says the cause is unclear and lists what it ruled out.
 Silence is a valid outcome. If triage found nothing, it posts nothing: an empty
 channel beats filler under an incident someone is trying to read.
 
-It runs as a single Cloudflare Worker on the
-[Agents SDK](https://developers.cloudflare.com/agents/).
+It runs as a single Cloudflare Worker — one `fetch` handler, an RPC
+entrypoint, and a model turn on [Workers AI](https://developers.cloudflare.com/workers-ai/).
+It was scaffolded on the [Agents SDK](https://developers.cloudflare.com/agents/),
+but every caller wants one turn and an answer rather than a streaming
+conversation, so the chat agent and its Durable Object are gone.
 
 ## Why it exists
 

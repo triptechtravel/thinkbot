@@ -28,18 +28,18 @@
   // Add your own hostname here, e.g.
   //   "routes": [{ "pattern": "thinkbot.example.com", "custom_domain": true }]
   // Left unset so a fork does not try to claim someone else's domain.
-  "durable_objects": {
-    "bindings": [
-      {
-        "class_name": "ChatAgent",
-        "name": "ChatAgent"
-      }
-    ]
-  },
+  // ChatAgent is gone along with the chat UI: every caller wants one turn and
+  // an answer, which runOpsTurn provides without a Durable Object. The v2
+  // migration deletes the class and its stored chat history; keep v1 in place,
+  // because migrations are a log and Cloudflare replays it in order.
   "migrations": [
     {
       "new_sqlite_classes": ["ChatAgent"],
       "tag": "v1"
+    },
+    {
+      "deleted_classes": ["ChatAgent"],
+      "tag": "v2"
     }
   ]
 }

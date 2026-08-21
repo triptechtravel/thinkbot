@@ -1,10 +1,11 @@
 /**
- * The non-streaming entry point channels and hooks use.
+ * The one entry point every channel and hook goes through.
  *
- * The chat UI streams over a WebSocket; Telegram, Slack, and the monitoring
- * inbox all want a plain "here is a message, give me an answer". Keeping that
- * on one method means the framework's chat surface is touched in exactly one
- * place, and a breaking change there does not reach the channels.
+ * Telegram, Slack, the monitoring inbox and the CI inbox all want the same
+ * thing: here is a message, give me an answer. That is the whole shape, which
+ * is why the streaming chat agent this was scaffolded with had no caller left
+ * once the UI went — a Durable Object holding conversation state earns nothing
+ * when every conversation is one turn long.
  */
 
 import { generateText, stepCountIs } from 'ai';

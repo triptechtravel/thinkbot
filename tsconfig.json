@@ -1,8 +1,21 @@
 {
-  "extends": "agents/tsconfig",
   "compilerOptions": {
-    // Runtime types come from `wrangler types` (env.d.ts), not the
-    // @cloudflare/workers-types package.
-    "types": ["node", "vite/client"]
-  }
+    // Was `"extends": "agents/tsconfig"`. That package left with the chat
+    // agent, and the settings it supplied are small enough to state here —
+    // chiefly a `lib` without DOM, since the Worker's web APIs come from the
+    // runtime types in env.d.ts and the two definitions conflict.
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "types": ["node"],
+    "strict": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "isolatedModules": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["src", "env.d.ts"]
 }
