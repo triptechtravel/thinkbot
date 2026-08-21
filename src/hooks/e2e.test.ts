@@ -216,3 +216,35 @@ describe("e2eHeadline", () => {
     expect(e2eHeadline(report())).not.toContain("triptechtravel/");
   });
 });
+
+describe("probe reports", () => {
+  const probe: E2eReport = {
+    schemaVersion: E2E_SCHEMA_VERSION,
+    probe: true,
+    repo: "triptechtravel/campermate.com",
+    sha: "d0812c0d",
+    failures: [{ title: "alert path probe — no tests were run" }]
+  };
+
+  it("says it is a probe, first, in the headline", () => {
+    expect(e2eHeadline(probe)).toContain("probe");
+    expect(e2eHeadline(probe)).toContain("nothing is wrong");
+  });
+
+  it("never reads as a failure count", () => {
+    expect(e2eHeadline(probe)).not.toContain("failed");
+  });
+
+  /** An agent asked to explain a non-event will invent one. */
+  it("tells the agent not to investigate", () => {
+    const prompt = e2eToPrompt(probe);
+    expect(prompt).toContain("NOTHING");
+    expect(prompt).toContain("not a failure");
+    expect(prompt).not.toContain("Investigate what changed");
+  });
+
+  it("leaves real reports alone", () => {
+    expect(e2eToPrompt(report())).toContain("Investigate what changed");
+    expect(e2eHeadline(report())).not.toContain("probe");
+  });
+});

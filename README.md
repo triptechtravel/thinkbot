@@ -91,6 +91,14 @@ runner should not, and answers what changed around that commit.
 says nothing about whether the site is healthy. Reporting that as "0 tests
 failed" is how a real two-night outage read as noise.
 
+A report may set `"probe": true`. It travels the same route and is posted the
+same way — a probe down a different code path would prove that path works and
+nothing about the one a real failure takes — but it is labelled unmistakably and
+skips triage, because an agent asked to explain a non-event will invent one.
+It exists because there is no second notifier behind this path: without a way
+to exercise delivery, you find out it is broken during the outage it was meant
+to announce.
+
 **This path always posts**, unlike monitoring triage. There is no second
 notifier behind it, so silence would mean a failing nightly suite disappears.
 The headline is the floor; the triage paragraph is what is added on top.

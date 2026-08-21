@@ -40,6 +40,12 @@ export interface E2eFailure {
 
 export interface E2eReport {
   schemaVersion?: number;
+  /**
+   * A delivery test, not an incident. Reported over the same route on purpose:
+   * a probe that took a different path through the code would prove that path
+   * works and nothing about the one a real failure takes.
+   */
+  probe?: boolean;
   /** owner/repo, so the agent knows where to look for what changed. */
   repo: string;
   /** Commit the suite ran against. */
@@ -132,6 +138,21 @@ export function e2eToPrompt(report: E2eReport): string {
   const failures = report.failures ?? [];
   const lines: string[] = [];
 
+  // Do not spend a triage turn correlating commits against a synthetic
+  // failure: there is nothing to find, and an agent asked to explain a
+  // non-event will invent one.
+  if (report.probe) {
+    return [
+      "ALERT PATH PROBE — this is a delivery test, not a failure.",
+      `Repository: ${report.repo}`,
+      report.runUrl ? `Run: ${report.runUrl}` : "",
+      "",
+      "Reply with the single word NOTHING. Do not investigate."
+    ]
+      .filter(Boolean)
+      .join("\n");
+  }
+
   if (report.loadError && failures.length === 0) {
     lines.push(
       `E2E SUITE FAILED TO RUN — ${report.repo}.`,
@@ -187,6 +208,12 @@ export function e2eToPrompt(report: E2eReport): string {
 export function e2eHeadline(report: E2eReport): string {
   const failures = report.failures ?? [];
   const where = report.repo.split("/").pop() ?? report.repo;
+
+  // Say so unmistakably and first: a probe that reads as an outage costs
+  // someone their evening, and one that does it twice stops being believed.
+  if (report.probe) {
+    return `🧪 ${where} E2E alert path probe — delivery works, nothing is wrong`;
+  }
 
   if (report.loadError && failures.length === 0) {
     return `🔴 ${where} E2E suite failed to run — no tests executed`;
