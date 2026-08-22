@@ -10,23 +10,17 @@
   "failures": [
     {
       "title": "my-trip-map.spec.ts › every pin sits on its own coordinate, not in document flow",
-      "projects": [
-        "desktop-chrome"
-      ],
+      "projects": ["desktop-chrome"],
       "error": "Test timeout of 30000ms exceeded."
     },
     {
       "title": "my-trip-map.spec.ts › tapping a pin opens the peek for that place",
-      "projects": [
-        "desktop-chrome"
-      ],
+      "projects": ["desktop-chrome"],
       "error": "Test timeout of 30000ms exceeded."
     },
     {
       "title": "poi-detail.spec.ts › POI page shows map section",
-      "projects": [
-        "desktop-chrome"
-      ],
+      "projects": ["desktop-chrome"],
       "error": "Test timeout of 30000ms exceeded."
     }
   ],

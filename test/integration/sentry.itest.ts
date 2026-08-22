@@ -17,7 +17,7 @@ import { sentryTools } from "../../src/tools/errors";
 
 const env = {
   SENTRY_TOKEN: process.env.SENTRY_TOKEN,
-  SENTRY_ORG: process.env.SENTRY_ORG,
+  SENTRY_ORG: process.env.SENTRY_ORG
 } as unknown as Env;
 
 const configured = Boolean(env.SENTRY_TOKEN && env.SENTRY_ORG);
@@ -25,7 +25,7 @@ const configured = Boolean(env.SENTRY_TOKEN && env.SENTRY_ORG);
 const run = (input: Record<string, unknown>) => {
   const execute = sentryTools(env).sentryIssues.execute as unknown as (
     i: unknown,
-    o: unknown,
+    o: unknown
   ) => Promise<{
     scope: string;
     issues: Array<{ project: string; title: string; firstSeen: string }>;

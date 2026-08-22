@@ -80,8 +80,6 @@ export interface ThinkbotEnv {
   /** Sentry organisation slug, as it appears in the Sentry URL. */
   SENTRY_ORG?: string;
 
-  ROLLBAR_TOKEN?: string;
-
   // ── Channels ─────────────────────────────────────────────────────────
   TELEGRAM_BOT_TOKEN?: string;
   /** Secret token Telegram echoes back, proving the request came from them. */
@@ -108,9 +106,9 @@ export interface ThinkbotEnv {
  *   - gpt-oss-120b COLLAPSED once in six, emitting a wall of exclamation
  *     marks to the token cap. That is the failure that reached #development
  *     in August. kimi-k2.6 did not, in five.
- *   - Where a tool failed, gpt-oss-120b reported "no new Sentry/Rollbar
- *     errors" — a fabricated negative, indistinguishable in an incident
- *     channel from a real all-clear. kimi-k2.6 said the tool was
+ *   - Where a tool failed, gpt-oss-120b reported "no new errors" for a tool
+ *     that had errored — a fabricated negative, indistinguishable in an
+ *     incident channel from a real all-clear. kimi-k2.6 said the tool was
  *     inaccessible and that it could not confirm. It also named the test
  *     framework correctly, where gpt-oss called Playwright "Cypress".
  *

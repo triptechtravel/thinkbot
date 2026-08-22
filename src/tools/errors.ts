@@ -1,10 +1,16 @@
 /**
- * Sentry and Rollbar — "did a new exception appear at the same moment?"
+ * Sentry — "did a new exception appear at the same moment?"
  *
- * The two error trackers share a shape, so they share a file. What matters
- * for correlation is not the whole issue list but the ones that are *new* or
- * *regressed* inside the failure window: an exception that has been firing all
- * week is unlikely to explain an outage that started twenty minutes ago.
+ * What matters for correlation is not the whole issue list but the ones that
+ * are *new* or *regressed* inside the failure window: an exception that has
+ * been firing all week is unlikely to explain an outage that started twenty
+ * minutes ago.
+ *
+ * Rollbar lived here too until 2026-08-22. It was removed from the estate, and
+ * the tool had in any case never worked in this deployment — the token was
+ * invalid, and every triage turn spent a step to be told 403. A tool that
+ * cannot answer is worse than an absent one: it costs a step, and its failure
+ * has to be explained in the report every single time.
  */
 
 import { tool } from "ai";
@@ -112,74 +118,6 @@ export function sentryTools(env: Env) {
               ? onlyNew
                 ? "No new issues in this window — the cause is probably not a fresh exception."
                 : "No activity in this window."
-              : undefined
-        };
-      }
-    })
-  };
-}
-
-// ── Rollbar ──────────────────────────────────────────────────────────────
-
-interface RollbarItem {
-  id: number;
-  counter: number;
-  title: string;
-  level: string;
-  environment: string;
-  total_occurrences: number;
-  first_occurrence_timestamp: number;
-  last_occurrence_timestamp: number;
-  status: string;
-}
-
-export function rollbarTools(env: Env) {
-  return {
-    rollbarItems: tool({
-      description:
-        "Recent Rollbar items for the legacy applications, newest activity first. Same purpose as sentryIssues: find an error that started when the failure did.",
-      inputSchema: z.object({
-        withinMinutes: z.number().optional().describe("Default 120."),
-        onlyNew: z
-          .boolean()
-          .optional()
-          .describe("Only items first seen inside the window. Default true.")
-      }),
-      execute: async ({ withinMinutes = 120, onlyNew = true }) => {
-        if (!env.ROLLBAR_TOKEN)
-          throw new NotConfiguredError("Rollbar", "ROLLBAR_TOKEN");
-        const cutoffSeconds = Math.floor(
-          (Date.now() - withinMinutes * 60_000) / 1000
-        );
-
-        const data = await fetchJson<{ result: { items: RollbarItem[] } }>(
-          "https://api.rollbar.com/api/1/items/?status=active&limit=25",
-          { headers: { "X-Rollbar-Access-Token": env.ROLLBAR_TOKEN } },
-          "Rollbar items"
-        );
-
-        const rows = (data.result?.items ?? [])
-          .filter((i) => i.last_occurrence_timestamp >= cutoffSeconds)
-          .filter(
-            (i) => !onlyNew || i.first_occurrence_timestamp >= cutoffSeconds
-          )
-          .map((i) => ({
-            title: clip(i.title, 140),
-            level: i.level,
-            environment: i.environment,
-            occurrences: i.total_occurrences,
-            firstSeen: new Date(
-              i.first_occurrence_timestamp * 1000
-            ).toISOString(),
-            lastSeen: new Date(i.last_occurrence_timestamp * 1000).toISOString()
-          }));
-
-        return {
-          windowMinutes: withinMinutes,
-          items: rows.slice(0, 10),
-          note:
-            rows.length === 0
-              ? "No matching Rollbar activity in this window."
               : undefined
         };
       }

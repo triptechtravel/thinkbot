@@ -12,19 +12,21 @@
 export class NotConfiguredError extends Error {
   constructor(what: string, secret: string) {
     super(`${what} is not configured — set the ${secret} secret.`);
-    this.name = 'NotConfiguredError';
+    this.name = "NotConfiguredError";
   }
 }
 
 export async function fetchJson<T>(
   url: string,
   init: RequestInit,
-  label: string,
+  label: string
 ): Promise<T> {
   const response = await fetch(url, init);
   if (!response.ok) {
-    const body = await response.text().catch(() => '');
-    throw new Error(`${label} returned ${response.status}${body ? `: ${body.slice(0, 200)}` : ''}`);
+    const body = await response.text().catch(() => "");
+    throw new Error(
+      `${label} returned ${response.status}${body ? `: ${body.slice(0, 200)}` : ""}`
+    );
   }
   return (await response.json()) as T;
 }
@@ -36,6 +38,6 @@ export function since(minutes: number): string {
 
 /** Trim free text so one verbose message cannot dominate the context. */
 export function clip(text: string | null | undefined, max = 180): string {
-  if (!text) return '';
+  if (!text) return "";
   return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }

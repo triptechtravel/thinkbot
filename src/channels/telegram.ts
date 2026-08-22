@@ -6,10 +6,10 @@
  * breaking change in the agent library touches one file, not this one.
  */
 
-import { allowedTelegramChats } from '../config';
-import type { InboundMessage } from './reply';
+import { allowedTelegramChats } from "../config";
+import type { InboundMessage } from "./reply";
 
-const API = 'https://api.telegram.org';
+const API = "https://api.telegram.org";
 
 interface TelegramUpdate {
   message?: {
@@ -29,26 +29,29 @@ export function telegramConfigured(env: Env): boolean {
  * a public Worker, so this header is what makes the endpoint trustworthy.
  */
 export function verifyTelegramRequest(request: Request, env: Env): boolean {
-  const provided = request.headers.get('X-Telegram-Bot-Api-Secret-Token');
+  const provided = request.headers.get("X-Telegram-Bot-Api-Secret-Token");
   return Boolean(provided && provided === env.TELEGRAM_WEBHOOK_SECRET);
 }
 
 export async function sendTelegram(
   env: Env,
   chatId: number | string,
-  text: string,
+  text: string
 ): Promise<void> {
-  const response = await fetch(`${API}/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      // Telegram rejects the whole message on malformed markdown, and model
-      // output is not reliably well-formed. Plain text always arrives.
-      disable_web_page_preview: true,
-    }),
-  });
+  const response = await fetch(
+    `${API}/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text,
+        // Telegram rejects the whole message on malformed markdown, and model
+        // output is not reliably well-formed. Plain text always arrives.
+        disable_web_page_preview: true
+      })
+    }
+  );
 
   if (!response.ok) {
     throw new Error(`Telegram sendMessage returned ${response.status}`);
@@ -61,7 +64,7 @@ export async function sendTelegram(
  */
 export function parseTelegramUpdate(
   update: TelegramUpdate,
-  env: Env,
+  env: Env
 ): InboundMessage | null {
   const message = update.message;
   if (!message?.text) return null;
@@ -76,6 +79,6 @@ export function parseTelegramUpdate(
   return {
     sessionId: `telegram:${chatId}`,
     text: message.text,
-    target: { channel: 'telegram', chatId },
+    target: { channel: "telegram", chatId }
   };
 }

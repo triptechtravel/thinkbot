@@ -9,10 +9,7 @@ vi.mock("./tools/clawdwatch", () => ({ clawdwatchTools: () => ({}) }));
 vi.mock("./tools/github", () => ({ githubTools: () => ({}) }));
 vi.mock("./tools/datadog", () => ({ datadogTools: () => ({}) }));
 vi.mock("./tools/workers", () => ({ workerTools: () => ({}) }));
-vi.mock("./tools/errors", () => ({
-  sentryTools: () => ({}),
-  rollbarTools: () => ({})
-}));
+vi.mock("./tools/errors", () => ({ sentryTools: () => ({}) }));
 
 const { runOpsTurn } = await import("./agent-ops");
 

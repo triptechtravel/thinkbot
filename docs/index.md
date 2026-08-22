@@ -17,7 +17,7 @@ title: thinkbot
 
 An ops agent that triages monitoring alerts. It receives an alert from
 [clawdwatch](https://triptechtravel.github.io/clawdwatch/), investigates it
-against GitHub, Datadog, Sentry and Rollbar, and reports what it found to Slack
+against GitHub, Datadog and Sentry, and reports what it found to Slack
 or Telegram.
 
 A check tells you an endpoint returned 500. thinkbot looks for what changed
@@ -53,8 +53,8 @@ call, so there is no shared secret and no public endpoint:
 ```
 
 ```ts
-import { rpc } from 'clawdwatch';
-notifiers: [rpc({ binding: (env) => env.AGENT })]
+import { rpc } from "clawdwatch";
+notifiers: [rpc({ binding: (env) => env.AGENT })];
 ```
 
 **Signed webhook.** For a sender that cannot use a binding,
@@ -66,12 +66,11 @@ shared triage path never assumes one was checked.
 
 ## What it can look at
 
-| Source | Used for |
-|---|---|
-| GitHub | pull requests merged recently, workflow runs |
-| Datadog | metrics that stepped around the failure window |
-| Sentry | exceptions first seen inside the window |
-| Rollbar | the same, for services reporting there |
+| Source     | Used for                                            |
+| ---------- | --------------------------------------------------- |
+| GitHub     | pull requests merged recently, workflow runs        |
+| Datadog    | metrics that stepped around the failure window      |
+| Sentry     | exceptions first seen inside the window             |
 | clawdwatch | check history, incidents, and writing findings back |
 
 Each is optional. A source with no token configured reports that it is not
@@ -83,10 +82,10 @@ needs no standing credential to record what it concluded.
 
 ## Where to go
 
-| Page | What it covers |
-|---|---|
-| [Setup](/guide/setup) | Deploying it and wiring up the sources |
-| [Security](/guide/security) | What it holds, and what verifies each caller |
+| Page                                | What it covers                                          |
+| ----------------------------------- | ------------------------------------------------------- |
+| [Setup](/guide/setup)               | Deploying it and wiring up the sources                  |
+| [Security](/guide/security)         | What it holds, and what verifies each caller            |
 | [Contributing](/guide/contributing) | Conventions that are load-bearing rather than stylistic |
 
 ## The other half

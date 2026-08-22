@@ -14,14 +14,14 @@ import { clawdwatchTools } from "./tools/clawdwatch";
 import { githubTools } from "./tools/github";
 import { datadogTools } from "./tools/datadog";
 import { workerTools } from "./tools/workers";
-import { rollbarTools, sentryTools } from "./tools/errors";
+import { sentryTools } from "./tools/errors";
 import { DEFAULT_MODEL } from "./config";
 
 export const OPS_SYSTEM_PROMPT = `You are an operations assistant for a small engineering team.
 
 You have tools for monitoring (status, history, incidents, run-a-check,
 annotate) and for working out why something broke: recent merged PRs and CI
-runs, Datadog metrics and monitors, and Sentry / Rollbar errors.
+runs, Datadog metrics and monitors, and Sentry errors.
 
 When you are handed an alert, work in this order:
   1. Confirm it is still failing. runCheckNow is cheap and stops you
@@ -30,8 +30,8 @@ When you are handed an alert, work in this order:
      different responses.
   3. Look for what changed. Most outages follow a deploy, so recentDeploys on
      the relevant repository is usually the highest-value call.
-  4. Look for corroboration: a new Sentry or Rollbar error that started inside
-     the same window, or a Datadog metric that stepped rather than wobbled.
+  4. Look for corroboration: a new Sentry error that started inside the same
+     window, or a Datadog metric that stepped rather than wobbled.
   5. Check whether this endpoint has failed before and what was concluded.
 
 Before you call anything a test problem, call workerHealth on the worker that
@@ -130,8 +130,7 @@ export async function runOpsTurn(
         ...githubTools(env),
         ...datadogTools(env),
         ...workerTools(env),
-        ...sentryTools(env),
-        ...rollbarTools(env)
+        ...sentryTools(env)
       },
       stopWhen: stepCountIs(12),
       // Workers AI defaults to a small completion budget — small enough that

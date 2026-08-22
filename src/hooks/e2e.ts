@@ -10,7 +10,7 @@
  * The split of work is the point. The runner holds evidence no Worker can
  * reach — which specs failed, what the assertions said, where the trace
  * artefact is. thinkbot holds the credentials the runner should not — GitHub,
- * Sentry, Datadog, Rollbar — and the question worth answering: what changed
+ * Sentry, Datadog — and the question worth answering: what changed
  * around this commit.
  *
  * Verification reuses clawdwatch's `verifySignature`, which is the same

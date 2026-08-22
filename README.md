@@ -2,7 +2,7 @@
 
 An ops agent that triages monitoring alerts. It receives an alert from
 [clawdwatch](https://github.com/triptechtravel/clawdwatch), investigates it
-against GitHub, Datadog, Sentry and Rollbar, and reports what it found to Slack
+against GitHub, Datadog and Sentry, and reports what it found to Slack
 or Telegram.
 
 The point is the step monitoring cannot do on its own. A check tells you an
@@ -135,7 +135,6 @@ Two consequences worth knowing:
 | GitHub     | pull requests merged recently, workflow runs        |
 | Datadog    | metrics that stepped around the failure window      |
 | Sentry     | exceptions first seen inside the window             |
-| Rollbar    | the same, for services reporting there              |
 | clawdwatch | check history, incidents, and writing findings back |
 
 Each is optional. A source with no token configured reports that it is not
@@ -200,7 +199,7 @@ node scripts/triage-harness.mjs three-map-timeouts \
 That comparison is how the current default was chosen. On 2026-08-22,
 gpt-oss-120b collapsed into a wall of exclamation marks once in six turns —
 the failure that reached the alert channel in August — and, where a tool
-failed, reported "no new Sentry/Rollbar errors" rather than saying it could
+failed, reported "no new Sentry errors" rather than saying it could
 not check. kimi-k2.6 did neither, and is the default as of that run. See
 `DEFAULT_MODEL` in `src/config.ts`.
 

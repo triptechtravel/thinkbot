@@ -1,6 +1,6 @@
 # Security
 
-thinkbot holds a GitHub PAT, Datadog, Sentry and Rollbar keys, and write access
+thinkbot holds a GitHub PAT, Datadog and Sentry keys, and write access
 to monitoring incidents. Treat a deployment as a credential store that happens
 to talk.
 
@@ -12,7 +12,7 @@ Open a private security advisory on the repository rather than a public issue.
 
 **No public surface.** `workers_dev` and `preview_urls` are off, there is no
 chat UI, and there is no static asset bundle. The last of those is the one
-worth stating explicitly: assets are matched *before* the Worker runs, so a
+worth stating explicitly: assets are matched _before_ the Worker runs, so a
 bundle is a second way into the hostname that no route guard ever sees. While
 one was deployed it served the chat shell to any unauthenticated GET, answered
 `/health` with `index.html` rather than the handler, and — before
@@ -41,7 +41,7 @@ move verification out of the HTTP adapter and into it.
 
 **Outbound credentials are read-only where the provider allows it.** The GitHub
 PAT should be fine-grained with contents and actions read scope only. Datadog,
-Sentry and Rollbar tokens should be read tokens. The one write capability is
+The Sentry token should be a read token. The one write capability is
 annotating monitoring incidents, and that is scoped by short-lived signed links
 that arrive with the alert rather than by a standing credential.
 

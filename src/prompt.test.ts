@@ -24,7 +24,7 @@ describe("ops system prompt", () => {
       /absence of evidence as evidence of absence/i
     );
     // Names the exact failure mode observed, so the instruction is concrete
-    // rather than a maxim: gpt-oss-120b wrote "no new Sentry/Rollbar errors"
+    // rather than a maxim: gpt-oss-120b wrote "no new Sentry errors"
     // for tools that had errored.
     expect(OPS_SYSTEM_PROMPT).toMatch(/unreachable/i);
   });

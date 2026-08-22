@@ -9,11 +9,11 @@
  * "3.2× the previous hour" than about the raw array.
  */
 
-import { tool } from 'ai';
-import { z } from 'zod';
-import { clip, fetchJson, NotConfiguredError } from './shared';
+import { tool } from "ai";
+import { z } from "zod";
+import { clip, fetchJson, NotConfiguredError } from "./shared";
 
-const API = 'https://api.datadoghq.com/api';
+const API = "https://api.datadoghq.com/api";
 
 interface SeriesPoint {
   0: number;
@@ -39,11 +39,11 @@ interface MonitorSummary {
 
 function headers(env: Env): Record<string, string> {
   if (!env.DD_API_KEY || !env.DD_APP_KEY) {
-    throw new NotConfiguredError('Datadog', 'DD_API_KEY and DD_APP_KEY');
+    throw new NotConfiguredError("Datadog", "DD_API_KEY and DD_APP_KEY");
   }
   return {
-    'DD-API-KEY': env.DD_API_KEY,
-    'DD-APPLICATION-KEY': env.DD_APP_KEY,
+    "DD-API-KEY": env.DD_API_KEY,
+    "DD-APPLICATION-KEY": env.DD_APP_KEY
   };
 }
 
@@ -56,7 +56,8 @@ function summarise(points: SeriesPoint[]) {
   const half = Math.floor(values.length / 2);
   const earlier = values.slice(0, half);
   const later = values.slice(half);
-  const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
+  const avg = (xs: number[]) =>
+    xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
 
   const firstHalf = avg(earlier);
   const secondHalf = avg(later);
@@ -69,7 +70,8 @@ function summarise(points: SeriesPoint[]) {
     firstHalfAvg: Math.round(firstHalf * 100) / 100,
     secondHalfAvg: Math.round(secondHalf * 100) / 100,
     // The number that actually answers "is this unusual?"
-    changeRatio: firstHalf > 0 ? Math.round((secondHalf / firstHalf) * 100) / 100 : null,
+    changeRatio:
+      firstHalf > 0 ? Math.round((secondHalf / firstHalf) * 100) / 100 : null
   };
 }
 
@@ -79,11 +81,11 @@ export function datadogTools(env: Env) {
       description:
         'Query a Datadog metric over a time window and get a summary — total, max, average, and how the second half compares with the first. Use this to tell a genuine spike from normal variation. Example queries: "sum:cloudflare.worker.errors{worker:images}.as_count()", "avg:trace.http.request.duration{service:api}".',
       inputSchema: z.object({
-        query: z.string().describe('A Datadog metric query'),
+        query: z.string().describe("A Datadog metric query"),
         withinMinutes: z
           .number()
           .optional()
-          .describe('Window ending now. Default 120.'),
+          .describe("Window ending now. Default 120.")
       }),
       execute: async ({ query, withinMinutes = 120 }) => {
         const to = Math.floor(Date.now() / 1000);
@@ -92,12 +94,17 @@ export function datadogTools(env: Env) {
         const data = await fetchJson<QueryResponse>(
           `${API}/v1/query?from=${from}&to=${to}&query=${encodeURIComponent(query)}`,
           { headers: headers(env) },
-          'Datadog query',
+          "Datadog query"
         );
 
         if (data.error) return { query, error: data.error };
         if (!data.series?.length) {
-          return { query, windowMinutes: withinMinutes, series: [], note: 'No data for this query.' };
+          return {
+            query,
+            windowMinutes: withinMinutes,
+            series: [],
+            note: "No data for this query."
+          };
         }
 
         return {
@@ -106,40 +113,44 @@ export function datadogTools(env: Env) {
           series: data.series.slice(0, 5).map((s) => ({
             metric: s.metric,
             scope: s.scope,
-            ...summarise(s.pointlist),
-          })),
+            ...summarise(s.pointlist)
+          }))
         };
-      },
+      }
     }),
 
     datadogMonitors: tool({
       description:
-        'Datadog monitors that are currently alerting or warning. Use this to see whether something else noticed the same problem, or whether an anomaly monitor fired around the same time.',
+        "Datadog monitors that are currently alerting or warning. Use this to see whether something else noticed the same problem, or whether an anomaly monitor fired around the same time.",
       inputSchema: z.object({
-        onlyTriggered: z.boolean().optional().describe('Default true.'),
+        onlyTriggered: z.boolean().optional().describe("Default true.")
       }),
       execute: async ({ onlyTriggered = true }) => {
         const data = await fetchJson<MonitorSummary[]>(
           `${API}/v1/monitor?with_downtimes=false`,
           { headers: headers(env) },
-          'Datadog monitors',
+          "Datadog monitors"
         );
 
         const rows = data
-          .filter((m) => !onlyTriggered || ['Alert', 'Warn', 'No Data'].includes(m.overall_state))
+          .filter(
+            (m) =>
+              !onlyTriggered ||
+              ["Alert", "Warn", "No Data"].includes(m.overall_state)
+          )
           .map((m) => ({
             id: m.id,
             name: clip(m.name, 100),
             state: m.overall_state,
-            modified: m.modified,
+            modified: m.modified
           }));
 
         return {
           triggered: rows.length,
           monitors: rows.slice(0, 20),
-          note: rows.length === 0 ? 'No monitors are alerting.' : undefined,
+          note: rows.length === 0 ? "No monitors are alerting." : undefined
         };
-      },
-    }),
+      }
+    })
   };
 }

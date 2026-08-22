@@ -9,8 +9,8 @@
  * dump is mostly noise, and every token of it is paid for on each turn.
  */
 
-import { tool } from 'ai';
-import { z } from 'zod';
+import { tool } from "ai";
+import { z } from "zod";
 
 interface StatusRow {
   id: string;
@@ -36,33 +36,36 @@ interface IncidentRow {
 
 class NotConfigured extends Error {
   constructor() {
-    super('Monitoring is not configured — MONITORING_URL is unset.');
+    super("Monitoring is not configured — MONITORING_URL is unset.");
   }
 }
 
 async function call<T>(
   env: Env,
   path: string,
-  init: RequestInit = {},
+  init: RequestInit = {}
 ): Promise<T> {
   if (!env.MONITORING_URL) throw new NotConfigured();
 
   const headers: Record<string, string> = {
-    Accept: 'application/json',
-    ...(init.headers as Record<string, string> | undefined),
+    Accept: "application/json",
+    ...(init.headers as Record<string, string> | undefined)
   };
 
   // A service token is only needed for writes and for deployments that put
   // reads behind Access too; sending it always is simpler and harmless.
   if (env.CF_ACCESS_CLIENT_ID && env.CF_ACCESS_CLIENT_SECRET) {
-    headers['CF-Access-Client-Id'] = env.CF_ACCESS_CLIENT_ID;
-    headers['CF-Access-Client-Secret'] = env.CF_ACCESS_CLIENT_SECRET;
+    headers["CF-Access-Client-Id"] = env.CF_ACCESS_CLIENT_ID;
+    headers["CF-Access-Client-Secret"] = env.CF_ACCESS_CLIENT_SECRET;
   }
 
-  const response = await fetch(`${env.MONITORING_URL.replace(/\/+$/, '')}${path}`, {
-    ...init,
-    headers,
-  });
+  const response = await fetch(
+    `${env.MONITORING_URL.replace(/\/+$/, "")}${path}`,
+    {
+      ...init,
+      headers
+    }
+  );
 
   if (!response.ok) {
     throw new Error(`Monitoring API ${path} returned ${response.status}`);
@@ -78,7 +81,7 @@ function summarise(row: StatusRow) {
     status: row.status,
     ...(row.lastError ? { error: row.lastError } : {}),
     ...(row.downSince ? { downSince: row.downSince } : {}),
-    ...(row.lastResponseMs !== null ? { responseMs: row.lastResponseMs } : {}),
+    ...(row.lastResponseMs !== null ? { responseMs: row.lastResponseMs } : {})
   };
 }
 
@@ -91,30 +94,35 @@ export function clawdwatchTools(env: Env) {
         onlyProblems: z
           .boolean()
           .optional()
-          .describe('Return only checks that are degraded or down. Default true.'),
+          .describe(
+            "Return only checks that are degraded or down. Default true."
+          )
       }),
       execute: async ({ onlyProblems = true }) => {
         const data = await call<{ overall: string; checks: StatusRow[] }>(
           env,
-          '/api/status',
+          "/api/status"
         );
         const rows = onlyProblems
-          ? data.checks.filter((c) => c.status !== 'healthy')
+          ? data.checks.filter((c) => c.status !== "healthy")
           : data.checks;
         return {
           overall: data.overall,
           total: data.checks.length,
-          checks: rows.map(summarise),
+          checks: rows.map(summarise)
         };
-      },
+      }
     }),
 
     monitoringHistory: tool({
       description:
-        'Recent results for one check. Use this to see whether a failure is a one-off or a pattern, and how latency has moved.',
+        "Recent results for one check. Use this to see whether a failure is a one-off or a pattern, and how latency has moved.",
       inputSchema: z.object({
-        checkId: z.string().describe('The check id, from monitoringStatus'),
-        limit: z.number().optional().describe('How many recent samples. Default 24.'),
+        checkId: z.string().describe("The check id, from monitoringStatus"),
+        limit: z
+          .number()
+          .optional()
+          .describe("How many recent samples. Default 24.")
       }),
       execute: async ({ checkId, limit = 24 }) => {
         const data = await call<{
@@ -129,7 +137,9 @@ export function clawdwatchTools(env: Env) {
 
         const recent = data.results.slice(-limit);
         const failures = recent.filter((r) => !r.success);
-        const latencies = recent.filter((r) => r.success).map((r) => r.responseTimeMs);
+        const latencies = recent
+          .filter((r) => r.success)
+          .map((r) => r.responseTimeMs);
 
         return {
           checkId,
@@ -138,29 +148,31 @@ export function clawdwatchTools(env: Env) {
           firstFailureAt: failures[0]?.ranAt ?? null,
           medianMs:
             latencies.length > 0
-              ? latencies.sort((a, b) => a - b)[Math.floor(latencies.length / 2)]
+              ? latencies.sort((a, b) => a - b)[
+                  Math.floor(latencies.length / 2)
+                ]
               : null,
-          maxMs: latencies.length > 0 ? Math.max(...latencies) : null,
+          maxMs: latencies.length > 0 ? Math.max(...latencies) : null
         };
-      },
+      }
     }),
 
     monitoringIncidents: tool({
       description:
-        'Incidents, newest first. Use this to see whether an endpoint has failed before and what was concluded last time.',
+        "Incidents, newest first. Use this to see whether an endpoint has failed before and what was concluded last time.",
       inputSchema: z.object({
         checkId: z.string().optional(),
         openOnly: z.boolean().optional(),
-        limit: z.number().optional().describe('Default 5.'),
+        limit: z.number().optional().describe("Default 5.")
       }),
       execute: async ({ checkId, openOnly, limit = 5 }) => {
         const params = new URLSearchParams({ limit: String(limit) });
-        if (checkId) params.set('check_id', checkId);
-        if (openOnly) params.set('status', 'open');
+        if (checkId) params.set("check_id", checkId);
+        if (openOnly) params.set("status", "open");
 
         const data = await call<{ incidents: IncidentRow[] }>(
           env,
-          `/api/incidents?${params}`,
+          `/api/incidents?${params}`
         );
         return data.incidents.map((i) => ({
           id: i.id,
@@ -169,33 +181,37 @@ export function clawdwatchTools(env: Env) {
           resolved: i.resolvedAt !== null,
           durationMs: i.durationMs,
           error: i.triggerError,
-          note: i.annotation,
+          note: i.annotation
         }));
-      },
+      }
     }),
 
     annotateIncident: tool({
       description:
-        'Record what you found on an incident. Do this whenever you reach a conclusion about a cause — the note appears on the incident in the dashboard, so the explanation outlives the chat.',
+        "Record what you found on an incident. Do this whenever you reach a conclusion about a cause — the note appears on the incident in the dashboard, so the explanation outlives the chat.",
       inputSchema: z.object({
         incidentId: z.string(),
         annotation: z
           .string()
-          .describe('What you found. Cite the specific evidence, not a guess.'),
+          .describe("What you found. Cite the specific evidence, not a guess.")
       }),
       execute: async ({ incidentId, annotation }) => {
-        await call(env, `/api/incidents/${encodeURIComponent(incidentId)}/annotate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ annotation }),
-        });
+        await call(
+          env,
+          `/api/incidents/${encodeURIComponent(incidentId)}/annotate`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ annotation })
+          }
+        );
         return { ok: true, incidentId };
-      },
+      }
     }),
 
     runCheckNow: tool({
       description:
-        'Run one check immediately instead of waiting for the schedule. Use this to confirm whether a reported failure is still happening.',
+        "Run one check immediately instead of waiting for the schedule. Use this to confirm whether a reported failure is still happening.",
       inputSchema: z.object({ checkId: z.string() }),
       execute: async ({ checkId }) => {
         const result = await call<{
@@ -203,9 +219,11 @@ export function clawdwatchTools(env: Env) {
           statusCode: number | null;
           responseTimeMs: number;
           error: string | null;
-        }>(env, `/api/checks/${encodeURIComponent(checkId)}/run`, { method: 'POST' });
+        }>(env, `/api/checks/${encodeURIComponent(checkId)}/run`, {
+          method: "POST"
+        });
         return result;
-      },
-    }),
+      }
+    })
   };
 }

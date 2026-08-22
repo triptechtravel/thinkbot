@@ -10,9 +10,9 @@
  *      rejected, otherwise a captured request can be replayed.
  */
 
-import type { InboundMessage } from './reply';
+import type { InboundMessage } from "./reply";
 
-const SLACK_API = 'https://slack.com/api';
+const SLACK_API = "https://slack.com/api";
 const MAX_TIMESTAMP_SKEW_S = 60 * 5;
 
 /** Inbound (mentions) needs a full Slack app: bot token + signing secret. */
@@ -30,7 +30,9 @@ export function canPost(env: Env): boolean {
 }
 
 function toHex(buffer: ArrayBuffer): string {
-  return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, '0')).join('');
+  return [...new Uint8Array(buffer)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
 }
 
 function timingSafeEqual(a: string, b: string): boolean {
@@ -58,16 +60,18 @@ export async function verifySlackSignature(opts: {
   if (Math.abs(now / 1000 - ts) > MAX_TIMESTAMP_SKEW_S) return false;
 
   const key = await crypto.subtle.importKey(
-    'raw',
+    "raw",
     new TextEncoder().encode(signingSecret) as Uint8Array<ArrayBuffer>,
-    { name: 'HMAC', hash: 'SHA-256' },
+    { name: "HMAC", hash: "SHA-256" },
     false,
-    ['sign'],
+    ["sign"]
   );
   const mac = await crypto.subtle.sign(
-    'HMAC',
+    "HMAC",
     key,
-    new TextEncoder().encode(`v0:${timestamp}:${body}`) as Uint8Array<ArrayBuffer>,
+    new TextEncoder().encode(
+      `v0:${timestamp}:${body}`
+    ) as Uint8Array<ArrayBuffer>
   );
 
   return timingSafeEqual(`v0=${toHex(mac)}`, signature);
@@ -83,16 +87,16 @@ export async function postSlack(
   env: Env,
   channel: string,
   text: string,
-  threadTs?: string,
+  threadTs?: string
 ): Promise<void> {
   if (!env.SLACK_BOT_TOKEN && env.SLACK_WEBHOOK_URL) {
     const hook = await fetch(env.SLACK_WEBHOOK_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
       // The webhook is shared with the monitoring Worker, so without an
       // explicit name these messages appear to come from Monitoring itself —
       // commentary with no visible author.
-      body: JSON.stringify({ text, username: 'thinkbot', icon_emoji: ':mag:' }),
+      body: JSON.stringify({ text, username: "thinkbot", icon_emoji: ":mag:" })
     });
     if (!hook.ok) {
       throw new Error(`Slack webhook returned ${hook.status}`);
@@ -101,19 +105,21 @@ export async function postSlack(
   }
 
   const response = await fetch(`${SLACK_API}/chat.postMessage`, {
-    method: 'POST',
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`,
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${env.SLACK_BOT_TOKEN}`
     },
-    body: JSON.stringify({ channel, text, thread_ts: threadTs }),
+    body: JSON.stringify({ channel, text, thread_ts: threadTs })
   });
 
   // Slack answers 200 with ok:false for application errors, so the status
   // code alone does not tell you whether the message was delivered.
   const result = (await response.json()) as { ok: boolean; error?: string };
   if (!result.ok) {
-    throw new Error(`Slack chat.postMessage failed: ${result.error ?? 'unknown'}`);
+    throw new Error(
+      `Slack chat.postMessage failed: ${result.error ?? "unknown"}`
+    );
   }
 }
 
@@ -133,18 +139,20 @@ interface SlackEvent {
 }
 
 export function isUrlVerification(payload: SlackEvent): string | null {
-  return payload.type === 'url_verification' ? (payload.challenge ?? null) : null;
+  return payload.type === "url_verification"
+    ? (payload.challenge ?? null)
+    : null;
 }
 
 /** Strip the `<@U123>` mention Slack includes when the bot is addressed. */
 function stripMention(text: string): string {
-  return text.replace(/<@[A-Z0-9]+>/g, '').trim();
+  return text.replace(/<@[A-Z0-9]+>/g, "").trim();
 }
 
 export function parseSlackEvent(payload: SlackEvent): InboundMessage | null {
   const event = payload.event;
   if (!event) return null;
-  if (event.type !== 'app_mention' && event.type !== 'message') return null;
+  if (event.type !== "app_mention" && event.type !== "message") return null;
 
   // Ignore our own messages, and edits/joins that carry a subtype. Without
   // this the bot replies to itself, forever.
@@ -159,8 +167,8 @@ export function parseSlackEvent(payload: SlackEvent): InboundMessage | null {
   const threadTs = event.thread_ts ?? event.ts;
 
   return {
-    sessionId: `slack:${event.channel}:${threadTs ?? 'main'}`,
+    sessionId: `slack:${event.channel}:${threadTs ?? "main"}`,
     text,
-    target: { channel: 'slack', conversation: event.channel, threadTs },
+    target: { channel: "slack", conversation: event.channel, threadTs }
   };
 }
