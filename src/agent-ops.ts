@@ -154,10 +154,75 @@ export async function runOpsTurn(
       maxOutputTokens: 2048
     });
 
+    const steps = result.steps?.length ?? 0;
+    const text = result.text.trim();
+
     // An empty string means "nothing worth saying" — callers decide whether
     // that becomes silence or a log line. Never invent filler text: it reads
     // as commentary on an incident and tells the reader nothing.
-    return { text: result.text.trim(), steps: result.steps?.length ?? 0 };
+    //
+    // But an empty answer AFTER several tool calls is not that. It is a turn
+    // that queried GitHub, Datadog and the Worker's telemetry and then simply
+    // stopped without writing the paragraph — observed on 2 of 3 runs against
+    // the recorded report, always on the turns that did the MOST work (4-5
+    // steps; the one that answered used 2). The evidence was gathered and
+    // thrown away, and the channel got silence under a live headline.
+    //
+    // So ask once more, with the same conversation and NO tools, which leaves
+    // the model nothing to do except write. Bounded to a single extra call:
+    // the alternative is re-running the whole investigation, at several times
+    // the cost, to recover an answer it had already reached.
+    if (text || steps === 0) return { text, steps };
+
+    console.warn(
+      `[ops] ${steps} step(s) produced no text — asking for the summary`
+    );
+
+    // Deliberately NOT a continuation of the tool conversation. The first
+    // attempt at this appended a user message to `result.response.messages`,
+    // and it recovered one empty turn out of two: when a turn ends mid-tool-call
+    // that history holds an assistant tool call with no matching result, and
+    // asking a model to continue from a malformed exchange gets you the same
+    // silence again.
+    //
+    // So the evidence is flattened into plain text and handed over as an
+    // ordinary prompt with no tools at all. Nothing to continue, nothing to
+    // call, no protocol to get wrong — the only thing left to do is write.
+    const evidence = (result.steps ?? [])
+      .flatMap((step) => step.toolResults ?? [])
+      .map((call) => {
+        const record = call as unknown as {
+          toolName?: string;
+          output?: unknown;
+          result?: unknown;
+        };
+        const value = record.output ?? record.result;
+        // Bounded per tool: a triage turn can pull a lot back, and the point
+        // is to restate a conclusion already reached, not to re-derive it.
+        return `${record.toolName ?? "tool"}: ${JSON.stringify(value).slice(0, 1500)}`;
+      })
+      .join("\n\n");
+
+    if (!evidence) return { text: "", steps };
+
+    const summary = await generateText({
+      model: workersai(options.model ?? env.MODEL ?? DEFAULT_MODEL),
+      system: opsSystemPrompt(env),
+      prompt: [
+        "You already investigated this and did not write the answer.",
+        "",
+        `The question was:\n${prompt}`,
+        "",
+        `What your tools returned:\n${evidence}`,
+        "",
+        "Write the answer now: one short paragraph, from the evidence above.",
+        "Reply with the single word NOTHING only if that evidence genuinely",
+        "explains nothing."
+      ].join("\n"),
+      maxOutputTokens: 2048
+    });
+
+    return { text: summary.text.trim(), steps };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[ops] turn failed:", message);
