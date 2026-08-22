@@ -97,6 +97,14 @@ export async function runOpsTurn(env: Env, prompt: string): Promise<AskResult> {
         ...rollbarTools(env),
       },
       stopWhen: stepCountIs(12),
+      // Workers AI defaults to a small completion budget — small enough that
+      // the deployment's triage paragraphs were arriving cut mid-sentence
+      // ("…appeared in the same window", no full stop), and the collapsed
+      // generation that reached Slack was exactly 256 characters long. One
+      // short paragraph needs nothing like this much; the headroom is so that
+      // a reasoning model's hidden tokens do not consume the whole budget
+      // before it starts writing the answer.
+      maxOutputTokens: 2048,
     });
 
     // An empty string means "nothing worth saying" — callers decide whether

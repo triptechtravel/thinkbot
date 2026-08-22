@@ -3,9 +3,13 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 const postSlack = vi.fn(
   async (_env: Env, _channel: string, _text: string) => {}
 );
-const runOpsTurn = vi.fn(async () => ({
-  text: "A PR merged 20 minutes before the run touched the theme cookie."
-}));
+// Typed as the real `runOpsTurn` returns, so a test that stubs `steps` is
+// checked against the shape the route actually reads.
+const runOpsTurn = vi.fn(
+  async (): Promise<{ text: string; steps?: number }> => ({
+    text: "A PR merged 20 minutes before the run touched the theme cookie."
+  })
+);
 
 vi.mock("./channels/slack", () => ({
   postSlack,
@@ -75,6 +79,44 @@ describe("triageE2eReport", () => {
     runOpsTurn.mockResolvedValue({ text: "NOTHING" });
     await triageE2eReport(env, report);
     expect(postSlack).not.toHaveBeenCalled();
+  });
+
+  /**
+   * The regression this whole guard exists for. On 2026-08-22 a collapsed
+   * generation posted 256 exclamation marks under a live headline about three
+   * failing specs, where it read as the alerting itself having broken. The
+   * mock returns what the model actually returned that morning.
+   */
+  it("says nothing when the model collapses instead of answering", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    runOpsTurn.mockResolvedValue({ text: "!".repeat(256), steps: 4 });
+
+    await triageE2eReport(env, report);
+
+    expect(postSlack).not.toHaveBeenCalled();
+    // Silent to the channel, loud in the logs: the turn still burned tools and
+    // tokens, and nobody would go looking for a message that never arrived.
+    expect(errors).toHaveBeenCalledWith(
+      expect.stringContaining("degenerate"),
+      expect.stringContaining("256 chars"),
+      expect.any(String)
+    );
+    errors.mockRestore();
+  });
+
+  it("posts a finding with the model's leaked planning line removed", async () => {
+    runOpsTurn.mockResolvedValue({
+      text:
+        "We need to fetch PR details.\nPR #1246 changed image URL " +
+        "construction 20 minutes before the run, and no new Sentry issues " +
+        "appeared in the same window."
+    });
+
+    await triageE2eReport(env, report);
+
+    expect(postSlack).toHaveBeenCalledTimes(1);
+    expect(postSlack.mock.calls[0][2]).not.toContain("We need to fetch");
+    expect(postSlack.mock.calls[0][2]).toContain("#1246");
   });
 
   it("says nothing when the turn throws", async () => {

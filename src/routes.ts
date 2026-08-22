@@ -9,6 +9,7 @@
 import type { AlertEvent } from "clawdwatch";
 import { runOpsTurn } from "./agent-ops";
 import { enqueueTurn } from "./turn-queue";
+import { usableFinding } from "./triage-output";
 import {
   parseTelegramUpdate,
   telegramConfigured,
@@ -245,9 +246,21 @@ async function runTriageTurn(
 ): Promise<string> {
   return Promise.race([
     runOpsTurn(env, prompt)
-      .then((result) =>
-        !result.text || /^nothing\.?$/i.test(result.text) ? "" : result.text
-      )
+      .then((result) => {
+        // Nothing sits between the model and the channel but this. On
+        // 2026-08-22 a collapsed generation put 256 exclamation marks under a
+        // real incident headline, because the only checks here were "empty"
+        // and "the word NOTHING".
+        const verdict = usableFinding(result.text);
+        if (verdict.reason) {
+          console.error(
+            `[${label}] output rejected or altered — ${verdict.reason};`,
+            `${result.steps} step(s), ${result.text.length} chars:`,
+            JSON.stringify(result.text.slice(0, 200))
+          );
+        }
+        return verdict.text;
+      })
       .catch((err) => {
         console.error(`[${label}] triage failed:`, err);
         return "";
