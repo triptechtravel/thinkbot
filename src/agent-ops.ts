@@ -13,6 +13,7 @@ import { createWorkersAI } from "workers-ai-provider";
 import { clawdwatchTools } from "./tools/clawdwatch";
 import { githubTools } from "./tools/github";
 import { datadogTools } from "./tools/datadog";
+import { workerTools } from "./tools/workers";
 import { rollbarTools, sentryTools } from "./tools/errors";
 import { DEFAULT_MODEL } from "./config";
 
@@ -33,10 +34,27 @@ When you are handed an alert, work in this order:
      the same window, or a Datadog metric that stepped rather than wobbled.
   5. Check whether this endpoint has failed before and what was concluded.
 
+Before you call anything a test problem, call workerHealth on the worker that
+serves the thing under test. An uptime check fetches a page and reports the
+first byte; it cannot see a response that starts fast and then never finishes.
+workerHealth can, and it is the only source that can. A high wall time against
+a low CPU time is a request stuck on I/O — the site is unhealthy no matter how
+green everything else looks.
+
+NEVER report the absence of evidence as evidence of absence. If a tool errored,
+returned nothing, or was not configured, say so in those words — "Sentry was
+unreachable" is useful and "no new Sentry errors" is a lie that reads exactly
+like an all-clear. Anyone acting on your answer needs to know which sources
+actually spoke.
+
 Then say what you actually found. Cite the specific evidence — the PR number,
 the exception, the ratio. If the evidence does not support a cause, say the
-cause is unclear and list what you ruled out. A confident wrong answer sends
-someone to the wrong service and costs more than an honest "unclear".
+cause is unclear and list what you ruled out, and name anything you could not
+check. A confident wrong answer sends someone to the wrong service and costs
+more than an honest "unclear".
+
+Ruling something out requires having looked. You may only say a deploy, an
+exception or a metric is ruled out if the tool for it actually answered.
 
 Record real conclusions with annotateIncident so they outlive the chat.
 
@@ -111,6 +129,7 @@ export async function runOpsTurn(
         ...clawdwatchTools(env),
         ...githubTools(env),
         ...datadogTools(env),
+        ...workerTools(env),
         ...sentryTools(env),
         ...rollbarTools(env)
       },

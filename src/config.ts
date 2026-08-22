@@ -66,6 +66,16 @@ export interface ThinkbotEnv {
   DD_API_KEY?: string;
   DD_APP_KEY?: string;
 
+  /**
+   * Cloudflare account + a token with Workers Observability read.
+   *
+   * Separate from CF_ACCESS_* above, which authenticates to Access and cannot
+   * read telemetry. This is the only source that shows a Worker request
+   * stalling — see src/tools/workers.ts for why that gap mattered.
+   */
+  CF_ACCOUNT_ID?: string;
+  CF_API_TOKEN?: string;
+
   SENTRY_TOKEN?: string;
   /** Sentry organisation slug, as it appears in the Sentry URL. */
   SENTRY_ORG?: string;

@@ -205,8 +205,18 @@ not check. kimi-k2.6 did neither, and is the default as of that run. See
 `DEFAULT_MODEL` in `src/config.ts`.
 
 Neither model found the real cause, and that is the more useful result: both
-called a server-side render stall a "test flake" because no tool here reaches
-Workers observability, which is where the evidence was.
+called a server-side render stall a "test flake" because no tool here reached
+Workers observability, which is where the evidence was. That gap is now
+closed — `workerHealth` (`src/tools/workers.ts`) reads Worker invocation
+telemetry, and against the incident window it returns:
+
+    STALLED: p99 wall 52572ms against p99 CPU 1172ms — 45:1. That is a request
+    waiting on I/O that never returns, NOT slow code. Treat the site as
+    unhealthy however green the uptime checks look.
+
+It needs `CF_ACCOUNT_ID` and `CF_API_TOKEN` (Workers Observability read). The
+prompt also now forbids reporting a tool that failed as a source that came back
+clean, which is the other half of how the wrong answer was reached.
 
 Both drive `POST /hooks/e2e/dry-run`, which runs the same prompt through the
 same turn as the real inbox and returns the result to the caller instead of
