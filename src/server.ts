@@ -10,6 +10,7 @@
 import {
   answerChat,
   handleE2eReport,
+  handleE2eDryRun,
   handleMonitoringAlert,
   handleSlack,
   handleTelegram,
@@ -90,6 +91,12 @@ export default {
         return handleMonitoringAlert(request, env, ctx);
       }
       if (pathname === "/hooks/e2e") return handleE2eReport(request, env, ctx);
+      // Same payload, same signature, same turn — but the answer comes back
+      // to the caller instead of to the channel. The triage harness drives
+      // this; nothing in production calls it.
+      if (pathname === "/hooks/e2e/dry-run") {
+        return handleE2eDryRun(request, env);
+      }
     }
 
     if (pathname === "/health") {

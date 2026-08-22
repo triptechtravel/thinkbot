@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "probe": true,
+  "repo": "triptechtravel/campermate.com",
+  "sha": "28ae1a934dc0bc5a3e8e392f13bf2bc85254f7a2",
+  "ref": "main",
+  "trigger": "workflow_dispatch",
+  "runUrl": "https://github.com/triptechtravel/campermate.com/actions/runs/32556115240",
+  "failures": [
+    {
+      "title": "alert path probe — no tests were run",
+      "error": "Nothing is wrong. This exercises delivery end to end."
+    }
+  ]
+}

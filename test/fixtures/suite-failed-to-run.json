@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "repo": "triptechtravel/campermate.com",
+  "sha": "28ae1a934dc0bc5a3e8e392f13bf2bc85254f7a2",
+  "ref": "main",
+  "workflow": "E2E Production Monitoring",
+  "trigger": "schedule",
+  "baseUrl": "https://campermate.com",
+  "runUrl": "https://github.com/triptechtravel/campermate.com/actions/runs/32556115240",
+  "loadError": "no JSON report was produced ([Errno 2] No such file or directory: 'test-results/results.json')",
+  "failures": []
+}

@@ -76,7 +76,23 @@ export interface AskResult {
  * thrown: a channel should say "I could not reach monitoring" rather than
  * silently dropping the user's message.
  */
-export async function runOpsTurn(env: Env, prompt: string): Promise<AskResult> {
+export interface OpsTurnOptions {
+  /**
+   * Model id for this turn only, overriding `env.MODEL`.
+   *
+   * Exists for the triage harness, which compares models against the same
+   * recorded reports. Comparing them by editing a var and redeploying takes
+   * the deployment down to one model at a time and makes the two runs
+   * incomparable — different day, different estate, different answer.
+   */
+  model?: string;
+}
+
+export async function runOpsTurn(
+  env: Env,
+  prompt: string,
+  options: OpsTurnOptions = {},
+): Promise<AskResult> {
   const workersai = createWorkersAI({
     binding: env.AI,
     // Routing through AI Gateway gives caching, request logs, and lets the
@@ -86,7 +102,7 @@ export async function runOpsTurn(env: Env, prompt: string): Promise<AskResult> {
 
   try {
     const result = await generateText({
-      model: workersai(env.MODEL ?? DEFAULT_MODEL),
+      model: workersai(options.model ?? env.MODEL ?? DEFAULT_MODEL),
       system: opsSystemPrompt(env),
       prompt,
       tools: {

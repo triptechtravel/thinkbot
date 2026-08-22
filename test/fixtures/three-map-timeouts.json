@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "repo": "triptechtravel/campermate.com",
+  "sha": "28ae1a934dc0bc5a3e8e392f13bf2bc85254f7a2",
+  "ref": "main",
+  "workflow": "E2E Production Monitoring",
+  "trigger": "schedule",
+  "baseUrl": "https://campermate.com",
+  "runUrl": "https://github.com/triptechtravel/campermate.com/actions/runs/32556115240",
+  "failures": [
+    {
+      "title": "my-trip-map.spec.ts › every pin sits on its own coordinate, not in document flow",
+      "projects": ["desktop-chrome"],
+      "error": "Test timeout of 30000ms exceeded."
+    },
+    {
+      "title": "my-trip-map.spec.ts › tapping a pin opens the peek for that place",
+      "projects": ["desktop-chrome"],
+      "error": "Test timeout of 30000ms exceeded."
+    },
+    {
+      "title": "poi-detail.spec.ts › POI page shows map section",
+      "projects": ["desktop-chrome"],
+      "error": "Test timeout of 30000ms exceeded."
+    }
+  ],
+  "passed": 59,
+  "skipped": 11
+}

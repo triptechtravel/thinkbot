@@ -44,8 +44,8 @@ authenticates the call, so there is no shared secret and no public endpoint:
 ```
 
 ```ts
-import { rpc } from 'clawdwatch';
-notifiers: [rpc({ binding: (env) => env.AGENT })]
+import { rpc } from "clawdwatch";
+notifiers: [rpc({ binding: (env) => env.AGENT })];
 ```
 
 **Signed webhook.** For a sender that cannot use a binding,
@@ -130,12 +130,12 @@ Two consequences worth knowing:
 
 ## What it can look at
 
-| Source | Used for |
-|---|---|
-| GitHub | pull requests merged recently, workflow runs |
-| Datadog | metrics that stepped around the failure window |
-| Sentry | exceptions first seen inside the window |
-| Rollbar | the same, for services reporting there |
+| Source     | Used for                                            |
+| ---------- | --------------------------------------------------- |
+| GitHub     | pull requests merged recently, workflow runs        |
+| Datadog    | metrics that stepped around the failure window      |
+| Sentry     | exceptions first seen inside the window             |
+| Rollbar    | the same, for services reporting there              |
 | clawdwatch | check history, incidents, and writing findings back |
 
 Each is optional. A source with no token configured reports that it is not
@@ -177,6 +177,40 @@ npm install
 npm test
 npx tsc --noEmit
 ```
+
+`npm test` mocks the model. That is the right default — the suite stays free
+and offline — but it means the whole of it goes green whatever the model
+emits, which is how a collapsed generation once posted 256 exclamation marks
+into the alert channel under a live incident headline.
+
+So the model half is exercised separately, against recorded reports:
+
+```bash
+export E2E_WEBHOOK_SECRET=...          # the same secret the CI reporter signs with
+
+npm run test:integration               # assert: is the output the kind of thing that belongs in a channel?
+VERBOSE=1 npm run test:integration     # ...and print every turn while doing it
+
+node scripts/triage-harness.mjs --all  # read the turns yourself
+node scripts/triage-harness.mjs three-map-timeouts \
+  --model @cf/openai/gpt-oss-120b \
+  --model @cf/moonshotai/kimi-k2.6     # compare two models on the same report
+```
+
+Both drive `POST /hooks/e2e/dry-run`, which runs the same prompt through the
+same turn as the real inbox and returns the result to the caller instead of
+announcing it. Nothing they do reaches Slack — a harness that posted would
+cry wolf every time anyone ran it. They do spend tokens and do reach GitHub,
+Datadog and Sentry, and they need a deployed Worker (or `npx wrangler dev`,
+which still reaches a real Workers AI binding) because the model and the
+correlation credentials are both bindings.
+
+The reports in `test/fixtures/` are real payloads recovered from the workflow
+logs of the runs that produced them; see the README there before adding one.
+What these can and cannot check is written at the top of
+`test/integration/triage.itest.ts` — in short, they check that the output is
+prose fit for an incident channel, not that its diagnosis is correct. No
+assertion separates a sound conclusion from a confident wrong one.
 
 ## Related
 

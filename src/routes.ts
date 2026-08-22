@@ -8,6 +8,7 @@
 
 import type { AlertEvent } from "clawdwatch";
 import { runOpsTurn } from "./agent-ops";
+import { DEFAULT_MODEL } from "./config";
 import { enqueueTurn } from "./turn-queue";
 import { usableFinding } from "./triage-output";
 import {
@@ -155,6 +156,62 @@ export async function handleE2eReport(
   // Acknowledge before triaging. A CI job should not sit waiting on an LLM
   // turn, and a slow answer here would read as a failed notification.
   return new Response("ok");
+}
+
+/**
+ * Run a triage turn on a report and hand back what it produced, posting
+ * nothing.
+ *
+ * The model half of this Worker had no test of any kind: `routes.e2e.test.ts`
+ * mocks `runOpsTurn` outright, so every test here asserts plumbing and none of
+ * them can see what the model says. That is how a wall of exclamation marks
+ * reached Slack with a green suite.
+ *
+ * The obvious way to exercise it — post a recorded report at the real inbox —
+ * announces a fake incident in the channel every time it runs, which is a
+ * habit that ends with a real one being ignored. This route runs the same
+ * prompt through the same turn and returns the result to the caller instead.
+ *
+ * It returns the model's RAW text alongside the text that would have been
+ * posted, because the gap between them is the interesting part: a rejected
+ * generation and a clean one are both silence from the outside, and only the
+ * raw text says which happened. `model` overrides the deployment's model for
+ * this turn, so two of them can be compared on the same report.
+ *
+ * Same secret and same signature as the inbox: it spends model tokens and
+ * reaches GitHub, Datadog and Sentry, so it is exactly as sensitive.
+ */
+export async function handleE2eDryRun(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  if (!e2eInboxConfigured(env)) return notConfigured();
+
+  const body = await request.text();
+  if (!(await verifyE2eReport(request, body, env))) return unauthorized();
+
+  let report: unknown;
+  try {
+    report = JSON.parse(body);
+  } catch {
+    return new Response("bad request", { status: 400 });
+  }
+  if (!isE2eReport(report)) return new Response("bad request", { status: 400 });
+
+  const model = new URL(request.url).searchParams.get("model") ?? undefined;
+  const started = Date.now();
+  const result = await runOpsTurn(env, e2eToPrompt(report), { model });
+  const verdict = usableFinding(result.text);
+
+  return Response.json({
+    headline: e2eHeadline(report),
+    raw: result.text,
+    posted: verdict.text,
+    reason: verdict.reason ?? null,
+    steps: result.steps,
+    model: model ?? env.MODEL ?? DEFAULT_MODEL,
+    ms: Date.now() - started
+  });
 }
 
 /**
