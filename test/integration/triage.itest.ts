@@ -22,7 +22,16 @@ import { join } from "node:path";
  *
  * Point it at a local worker with THINKBOT_URL=http://localhost:8787 and
  * `npx wrangler dev`. `wrangler dev` reaches a real Workers AI binding, so
- * the model is real either way.
+ * the model is real either way. Generate `.dev.vars` from Doppler
+ * (`thinkbot/prd`) for that, and LEAVE SLACK_WEBHOOK_URL OUT — the dry-run
+ * route posts nothing, but a harness should not be one typo from announcing a
+ * fake incident. Note `ESTATE_NOTES` is a Worker secret with no Doppler copy,
+ * so a local run is missing the estate context the deployment has: expect the
+ * model to guess project slugs it would otherwise be told, and do not read
+ * those misses as production behaviour.
+ *
+ * Do not edit `src/` while a run is in flight — `wrangler dev` hot-reloads and
+ * drops the request the turn is waiting on.
  *
  * WHAT THESE CAN AND CANNOT CHECK
  *
@@ -186,8 +195,15 @@ describe.skipIf(!SECRET)("triage, on reports that are not failures", () => {
     const result = await triage(fixture("suite-failed-to-run"));
 
     expect(result.posted.length).toBeGreaterThan(0);
+    // Widened after gpt-oss-120b closed with "the site appears healthy" on
+    // this very fixture and slipped through `site is healthy`. The claim is
+    // the same one; only the copula moved. What makes it wrong is that NO
+    // TEST RAN — the report carries no evidence about the site either way.
     expect(result.posted).not.toMatch(
-      /site is (?:fine|healthy|up|working)|no impact to users|everything is working/i
+      /\bsite\b[^.]{0,40}\b(?:is|appears|looks|seems|remains|was)\b[^.]{0,20}\b(?:fine|healthy|up|ok|okay|working|unaffected|operational)\b/i
+    );
+    expect(result.posted).not.toMatch(
+      /no impact to users|everything is working|no outage/i
     );
   }, 180_000);
 });

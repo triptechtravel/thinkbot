@@ -8,13 +8,13 @@
  * when every conversation is one turn long.
  */
 
-import { generateText, stepCountIs } from 'ai';
-import { createWorkersAI } from 'workers-ai-provider';
-import { clawdwatchTools } from './tools/clawdwatch';
-import { githubTools } from './tools/github';
-import { datadogTools } from './tools/datadog';
-import { rollbarTools, sentryTools } from './tools/errors';
-import { DEFAULT_MODEL } from './config';
+import { generateText, stepCountIs } from "ai";
+import { createWorkersAI } from "workers-ai-provider";
+import { clawdwatchTools } from "./tools/clawdwatch";
+import { githubTools } from "./tools/github";
+import { datadogTools } from "./tools/datadog";
+import { rollbarTools, sentryTools } from "./tools/errors";
+import { DEFAULT_MODEL } from "./config";
 
 export const OPS_SYSTEM_PROMPT = `You are an operations assistant for a small engineering team.
 
@@ -63,7 +63,9 @@ an incident someone is trying to read.`;
  */
 export function opsSystemPrompt(env: Env): string {
   const notes = env.ESTATE_NOTES?.trim();
-  return notes ? `${OPS_SYSTEM_PROMPT}\n\nAbout this estate:\n${notes}` : OPS_SYSTEM_PROMPT;
+  return notes
+    ? `${OPS_SYSTEM_PROMPT}\n\nAbout this estate:\n${notes}`
+    : OPS_SYSTEM_PROMPT;
 }
 
 export interface AskResult {
@@ -91,13 +93,13 @@ export interface OpsTurnOptions {
 export async function runOpsTurn(
   env: Env,
   prompt: string,
-  options: OpsTurnOptions = {},
+  options: OpsTurnOptions = {}
 ): Promise<AskResult> {
   const workersai = createWorkersAI({
     binding: env.AI,
     // Routing through AI Gateway gives caching, request logs, and lets the
     // model change without a deploy. Falls back to the direct binding.
-    ...(env.CF_AI_GATEWAY_ID ? { gateway: { id: env.CF_AI_GATEWAY_ID } } : {}),
+    ...(env.CF_AI_GATEWAY_ID ? { gateway: { id: env.CF_AI_GATEWAY_ID } } : {})
   });
 
   try {
@@ -110,17 +112,27 @@ export async function runOpsTurn(
         ...githubTools(env),
         ...datadogTools(env),
         ...sentryTools(env),
-        ...rollbarTools(env),
+        ...rollbarTools(env)
       },
       stopWhen: stepCountIs(12),
       // Workers AI defaults to a small completion budget — small enough that
       // the deployment's triage paragraphs were arriving cut mid-sentence
       // ("…appeared in the same window", no full stop), and the collapsed
-      // generation that reached Slack was exactly 256 characters long. One
-      // short paragraph needs nothing like this much; the headroom is so that
-      // a reasoning model's hidden tokens do not consume the whole budget
-      // before it starts writing the answer.
-      maxOutputTokens: 2048,
+      // generation that reached Slack was exactly 256 characters long.
+      //
+      // That 256 was the cap, now confirmed rather than inferred: reproducing
+      // the collapse against this model with the cap at 2048 produces exactly
+      // 2048 characters. `!` is a single token, so a run of them is a
+      // generation emitting token 0 until the budget stops it — the length IS
+      // the cap, and reading it as a content limit would have sent the next
+      // reader looking in the wrong place.
+      //
+      // Raising it therefore makes a collapse LONGER, not rarer. That is
+      // deliberate and safe only because `usableFinding` drops the collapse
+      // before it can be posted; the headroom exists so a reasoning model's
+      // hidden tokens do not consume the whole budget before it starts
+      // writing the answer.
+      maxOutputTokens: 2048
     });
 
     // An empty string means "nothing worth saying" — callers decide whether
@@ -129,7 +141,10 @@ export async function runOpsTurn(
     return { text: result.text.trim(), steps: result.steps?.length ?? 0 };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error('[ops] turn failed:', message);
-    return { text: `Could not complete the investigation: ${message}`, steps: 0 };
+    console.error("[ops] turn failed:", message);
+    return {
+      text: `Could not complete the investigation: ${message}`,
+      steps: 0
+    };
   }
 }
