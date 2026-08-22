@@ -88,8 +88,32 @@ export interface ThinkbotEnv {
   SLACK_ALERT_CHANNEL?: string;
 }
 
-/** Default model. Chosen for tool calling; override with MODEL. */
-export const DEFAULT_MODEL = "@cf/openai/gpt-oss-120b";
+/**
+ * Default model. Chosen for tool calling; override with `MODEL`.
+ *
+ * Was `@cf/openai/gpt-oss-120b`. Changed 2026-08-22 on the first real A/B —
+ * both models given the same recorded report through `/hooks/e2e/dry-run`,
+ * six turns each. Two findings decided it, and neither is about latency:
+ *
+ *   - gpt-oss-120b COLLAPSED once in six, emitting a wall of exclamation
+ *     marks to the token cap. That is the failure that reached #development
+ *     in August. kimi-k2.6 did not, in five.
+ *   - Where a tool failed, gpt-oss-120b reported "no new Sentry/Rollbar
+ *     errors" — a fabricated negative, indistinguishable in an incident
+ *     channel from a real all-clear. kimi-k2.6 said the tool was
+ *     inaccessible and that it could not confirm. It also named the test
+ *     framework correctly, where gpt-oss called Playwright "Cypress".
+ *
+ * Calibration is worth more here than speed: kimi is ~2x slower per turn
+ * (46-74s vs 20-32s) and this runs on a nightly, so the cost is nothing.
+ *
+ * What the A/B did NOT show is either model finding a real cause. Both
+ * concluded "test flake, site healthy" about an incident that was a
+ * server-side render stall — because no tool here reaches Workers
+ * observability, which is where the answer was. Changing the model does not
+ * fix that, and a better model would have been confidently wrong too.
+ */
+export const DEFAULT_MODEL = "@cf/moonshotai/kimi-k2.6";
 
 /** Session id used for alerts, so triage shares one continuous history. */
 export const OPS_SESSION = "ops";

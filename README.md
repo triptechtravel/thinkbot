@@ -197,6 +197,17 @@ node scripts/triage-harness.mjs three-map-timeouts \
   --model @cf/moonshotai/kimi-k2.6     # compare two models on the same report
 ```
 
+That comparison is how the current default was chosen. On 2026-08-22,
+gpt-oss-120b collapsed into a wall of exclamation marks once in six turns —
+the failure that reached the alert channel in August — and, where a tool
+failed, reported "no new Sentry/Rollbar errors" rather than saying it could
+not check. kimi-k2.6 did neither, and is the default as of that run. See
+`DEFAULT_MODEL` in `src/config.ts`.
+
+Neither model found the real cause, and that is the more useful result: both
+called a server-side render stall a "test flake" because no tool here reaches
+Workers observability, which is where the evidence was.
+
 Both drive `POST /hooks/e2e/dry-run`, which runs the same prompt through the
 same turn as the real inbox and returns the result to the caller instead of
 announcing it. Nothing they do reaches Slack — a harness that posted would
