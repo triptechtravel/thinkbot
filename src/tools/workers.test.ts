@@ -102,6 +102,34 @@ describe("workerHealth", () => {
     expect(result.verdict).toMatch(/unhealthy/i);
   });
 
+  /**
+   * A model quoted `max` as proof of the stall. It was really a cron running
+   * for an hour, present in the healthy window too. The output has to say
+   * which number carries the signal.
+   */
+  it("tells the reader to cite p99 rather than max", async () => {
+    stubFetch(
+      { ok: 100 },
+      {
+        wallP50: 200,
+        wallP99: 800,
+        wallMax: 6041376,
+        cpuP99: 150,
+        cpuMax: 8000
+      }
+    );
+
+    const result = (await run({
+      script: "campermate",
+      minutes: 60
+    })) as unknown as {
+      readMe: string;
+    };
+
+    expect(result.readMe).toMatch(/Cite p99, not max/);
+    expect(result.readMe).toMatch(/cron|queue|socket/i);
+  });
+
   it("calls genuine slowness slow, not stalled", async () => {
     // High wall, but CPU in proportion — the worker is working, not waiting.
     stubFetch(

@@ -8,5 +8,6 @@
   "baseUrl": "https://campermate.com",
   "runUrl": "https://github.com/triptechtravel/campermate.com/actions/runs/32556115240",
   "loadError": "no JSON report was produced ([Errno 2] No such file or directory: 'test-results/results.json')",
-  "failures": []
+  "failures": [],
+  "startedAt": "2026-08-22T06:07:01Z"
 }

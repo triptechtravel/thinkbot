@@ -248,3 +248,68 @@ describe("probe reports", () => {
     expect(e2eHeadline(report())).not.toContain("probe");
   });
 });
+
+/**
+ * The window the failure actually happened in.
+ *
+ * Triage asks the Worker's telemetry whether the site was healthy, and that
+ * query is a time window. On 2026-08-22 a replayed report produced a turn that
+ * read the health of a later, perfectly fine hour and reported it as if it
+ * described the failure — the numbers were real and answered the wrong
+ * question.
+ */
+describe("e2eToPrompt — the failure window", () => {
+  const base = {
+    repo: "triptechtravel/campermate.com",
+    sha: "28ae1a93",
+    failures: [{ title: "my-trip-map.spec.ts › a pin" }]
+  };
+
+  it("converts the start time into the units the tools take", () => {
+    const startedAt = new Date(Date.now() - 90 * 60_000).toISOString();
+    const prompt = e2eToPrompt({ ...base, startedAt });
+
+    expect(prompt).toContain(startedAt);
+    // Minutes, not just a timestamp: every tool takes "how far back", and an
+    // agent doing date arithmetic against a clock it cannot read is one more
+    // thing to get wrong.
+    expect(prompt).toMatch(/minutes=9[01]/);
+    expect(prompt).toMatch(/90 minutes ago|91 minutes ago/);
+  });
+
+  it("never asks for a zero-length window", () => {
+    // A report normally arrives within seconds. A zero-minute query returns
+    // nothing, which reads as "the site served no traffic" — the most
+    // misleading answer available.
+    const prompt = e2eToPrompt({
+      ...base,
+      startedAt: new Date().toISOString()
+    });
+    expect(prompt).toMatch(/minutes=5\b/);
+  });
+
+  it("says nothing about windows when the runner did not send a time", () => {
+    // Older runners omit the field. Silence beats asserting a window that was
+    // guessed.
+    const prompt = e2eToPrompt(base);
+    expect(prompt).not.toMatch(/Run started/);
+    expect(prompt).not.toMatch(/minutes=/);
+  });
+
+  it("ignores a start time it cannot parse", () => {
+    const prompt = e2eToPrompt({ ...base, startedAt: "last tuesday" });
+    expect(prompt).not.toMatch(/Run started/);
+  });
+
+  it("leaves the probe prompt alone", () => {
+    // The probe must stay a four-line instruction to reply NOTHING; a window
+    // is an invitation to investigate a non-event.
+    const prompt = e2eToPrompt({
+      ...base,
+      probe: true,
+      startedAt: new Date().toISOString()
+    });
+    expect(prompt).not.toMatch(/Run started/);
+    expect(prompt).toMatch(/NOTHING/);
+  });
+});

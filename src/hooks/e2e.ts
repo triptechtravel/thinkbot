@@ -54,6 +54,19 @@ export interface E2eReport {
   workflow?: string;
   /** `schedule`, `push`, `workflow_dispatch`. */
   trigger?: string;
+  /**
+   * ISO-8601 time the run began.
+   *
+   * Triage asks the Worker's own telemetry whether the site was healthy, and
+   * that query is a time WINDOW. Without this the agent can only ask about
+   * "now" — correct when a report arrives seconds after the failure, wrong for
+   * a queue backlog, a retry, or a recorded report replayed through the
+   * harness, where it cheerfully reports the health of some later hour.
+   *
+   * Optional: a runner predating the field omits it, and the prompt then says
+   * nothing about windows rather than asserting a wrong one.
+   */
+  startedAt?: string;
   /** The site under test. */
   baseUrl?: string;
   runUrl?: string;
@@ -110,6 +123,32 @@ function schemaNotice(report: E2eReport): string[] {
     `NOTE: this report uses payload schema v${version}, newer than the ` +
       `v${E2E_SCHEMA_VERSION} this build knows. Some detail may be missing ` +
       "from the summary above — prefer the run link over anything you infer."
+  ];
+}
+
+/**
+ * Tell the agent when the run was, in the units its tools take.
+ *
+ * `workerHealth` and the Datadog tools all take "how many minutes back", so an
+ * ISO timestamp alone would leave the agent doing date arithmetic on a clock
+ * it cannot read. Both are given: the timestamp so it can quote the window,
+ * and the age in minutes so it can pass one straight through.
+ *
+ * The floor of 5 is because a report normally arrives within seconds and a
+ * zero-minute window returns nothing at all — which reads as "the site served
+ * no traffic", the most misleading answer available.
+ */
+function windowLines(report: E2eReport): string[] {
+  if (!report.startedAt) return [];
+  const started = Date.parse(report.startedAt);
+  if (Number.isNaN(started)) return [];
+
+  const minutes = Math.max(5, Math.ceil((Date.now() - started) / 60_000));
+  return [
+    `Run started: ${report.startedAt} (${minutes} minutes ago).`,
+    `When you query Worker telemetry or metrics, cover THAT window — pass ` +
+      `minutes=${minutes} or wider. A default recent window can report a ` +
+      `perfectly healthy hour that the failure did not happen in.`
   ];
 }
 
@@ -173,6 +212,7 @@ export function e2eToPrompt(report: E2eReport): string {
     `Commit: ${report.sha}${report.ref ? ` on ${report.ref}` : ""}`,
     report.baseUrl ? `Target: ${report.baseUrl}` : "",
     report.trigger ? `Triggered by: ${report.trigger}` : "",
+    ...windowLines(report),
     report.runUrl ? `Run: ${report.runUrl}` : "",
     typeof report.passed === "number"
       ? `Also in this run: ${report.passed} passed, ${report.skipped ?? 0} skipped.`

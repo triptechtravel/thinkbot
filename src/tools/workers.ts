@@ -258,7 +258,16 @@ export function workerTools(env: Env) {
             max: scalar(timings, "wallMax")
           },
           cpuTimeMs: { p99: cpuP99, max: scalar(timings, "cpuMax") },
-          verdict: verdict(outcomes, wallP99, cpuP99)
+          verdict: verdict(outcomes, wallP99, cpuP99),
+          // Said out loud because a model quoted `max` as evidence of the
+          // stall and it was not: a Worker's max wall time is routinely a
+          // cron, a queue consumer or a WebSocket living for the better part
+          // of an hour, and it looks identical in a healthy window and a sick
+          // one. p99 moves with the request path; max does not.
+          readMe:
+            "Cite p99, not max. A long-lived cron, queue consumer or socket " +
+            "dominates max in every window, healthy or not, so max is not " +
+            "evidence of anything about request handling."
         };
       }
     })
