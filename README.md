@@ -130,15 +130,54 @@ Two consequences worth knowing:
 
 ## What it can look at
 
-| Source     | Used for                                            |
-| ---------- | --------------------------------------------------- |
-| GitHub     | pull requests merged recently, workflow runs        |
-| Datadog    | metrics that stepped around the failure window      |
-| Sentry     | exceptions first seen inside the window             |
-| clawdwatch | check history, incidents, and writing findings back |
+Tools are composed per turn from whatever this deployment is credentialed for.
+Nothing is hardcoded into the agent, so adopting this against a different
+estate is configuration, not a patch.
 
-Each is optional. A source with no token configured reports that it is not
-configured rather than failing the triage.
+| `TOOLS` name | Needs                           | Used for                                            |
+| ------------ | ------------------------------- | --------------------------------------------------- |
+| `github`     | `GITHUB_TOKEN`, `GITHUB_OWNER`  | pull requests merged recently, workflow runs        |
+| `datadog`    | `DD_API_KEY`, `DD_APP_KEY`      | metrics that stepped around the failure window      |
+| `sentry`     | `SENTRY_TOKEN`, `SENTRY_ORG`    | exceptions first seen inside the window             |
+| `workers`    | `CF_ACCOUNT_ID`, `CF_API_TOKEN` | Worker invocation telemetry — outcomes, wall vs CPU |
+| `clawdwatch` | `MONITORING_URL`                | check history, incidents, and writing findings back |
+
+**A provider without its credentials is not offered at all.** That is the
+important part, and it is not the same as failing gracefully. A tool that
+cannot answer still costs the agent one of its handful of steps, and — since
+the prompt requires reporting sources that failed — it earns a sentence in
+every write-up forever. This deployment carried a Rollbar tool with an invalid
+token for months and paid both costs on every single triage.
+
+`TOOLS` narrows that default; it is not an opt-in, so a fresh install with
+credentials works with `TOOLS` unset.
+
+```bash
+TOOLS=github,sentry   # only these two
+TOOLS=-datadog        # everything credentialed, minus Datadog
+```
+
+An unrecognised name is reported rather than ignored — a typo silently removes
+a tool, and a silently absent tool is indistinguishable from a deliberate
+choice. Every turn logs a `[tools]` line naming what ran and why the rest did
+not, and `/hooks/e2e/dry-run` returns the same in `tools` and `toolsSkipped`.
+
+### Adding one
+
+`src/tools/registry.ts` holds the list. A provider is a name, the env vars it
+cannot work without, and a function returning its tools:
+
+```ts
+{
+  name: "pagerduty",
+  summary: "Who was paged, and for what.",
+  requires: ["PAGERDUTY_TOKEN"],
+  build: pagerdutyTools,
+}
+```
+
+Workers have no filesystem and no runtime `import()`, so that list IS the
+registration — there is no directory to scan. One import, one entry.
 
 Findings worth keeping are written back to the incident with `annotateIncident`,
 using the short-lived signed links that arrive with the alert — so the agent

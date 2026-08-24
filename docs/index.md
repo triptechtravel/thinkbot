@@ -66,15 +66,23 @@ shared triage path never assumes one was checked.
 
 ## What it can look at
 
-| Source     | Used for                                            |
-| ---------- | --------------------------------------------------- |
-| GitHub     | pull requests merged recently, workflow runs        |
-| Datadog    | metrics that stepped around the failure window      |
-| Sentry     | exceptions first seen inside the window             |
-| clawdwatch | check history, incidents, and writing findings back |
+Tools are composed per turn from whatever the deployment is credentialed for,
+so running this against a different estate is configuration rather than a patch.
 
-Each is optional. A source with no token configured reports that it is not
-configured rather than failing the triage.
+| `TOOLS` name | Needs                           | Used for                                            |
+| ------------ | ------------------------------- | --------------------------------------------------- |
+| `github`     | `GITHUB_TOKEN`, `GITHUB_OWNER`  | pull requests merged recently, workflow runs        |
+| `datadog`    | `DD_API_KEY`, `DD_APP_KEY`      | metrics that stepped around the failure window      |
+| `sentry`     | `SENTRY_TOKEN`, `SENTRY_ORG`    | exceptions first seen inside the window             |
+| `workers`    | `CF_ACCOUNT_ID`, `CF_API_TOKEN` | Worker invocation telemetry — outcomes, wall vs CPU |
+| `clawdwatch` | `MONITORING_URL`                | check history, incidents, and writing findings back |
+
+A provider without its credentials is **not offered at all**, which is not the
+same as failing gracefully: a tool that cannot answer still spends one of the
+agent's handful of steps, and earns a sentence in every write-up. `TOOLS`
+narrows that default (`TOOLS=github,sentry`, or `TOOLS=-datadog`); unset means
+everything configured. Adding a provider is one entry in
+`src/tools/registry.ts`.
 
 Findings worth keeping are written back to the incident with `annotateIncident`,
 using the short-lived signed links that arrive with the alert — so the agent

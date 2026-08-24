@@ -10,18 +10,16 @@
 
 import { generateText, stepCountIs } from "ai";
 import { createWorkersAI } from "workers-ai-provider";
-import { clawdwatchTools } from "./tools/clawdwatch";
-import { githubTools } from "./tools/github";
-import { datadogTools } from "./tools/datadog";
-import { workerTools } from "./tools/workers";
-import { sentryTools } from "./tools/errors";
+import { composeTools } from "./tools/registry";
 import { DEFAULT_MODEL } from "./config";
 
 export const OPS_SYSTEM_PROMPT = `You are an operations assistant for a small engineering team.
 
-You have tools for monitoring (status, history, incidents, run-a-check,
-annotate) and for working out why something broke: recent merged PRs and CI
-runs, Datadog metrics and monitors, and Sentry errors.
+Your tools are whatever this deployment has been given — monitoring, code
+history, metrics, exceptions, runtime telemetry. Work from the ones you
+actually have. Do not assume a source exists because it usually would, and do
+not treat its absence as evidence: a question you had no tool to ask is
+unanswered, not answered "no".
 
 When you are handed an alert, work in this order:
   1. Confirm it is still failing. runCheckNow is cheap and stops you
@@ -125,13 +123,7 @@ export async function runOpsTurn(
       model: workersai(options.model ?? env.MODEL ?? DEFAULT_MODEL),
       system: opsSystemPrompt(env),
       prompt,
-      tools: {
-        ...clawdwatchTools(env),
-        ...githubTools(env),
-        ...datadogTools(env),
-        ...workerTools(env),
-        ...sentryTools(env)
-      },
+      tools: composeTools(env),
       stopWhen: stepCountIs(12),
       // Workers AI defaults to a small completion budget — small enough that
       // the deployment's triage paragraphs were arriving cut mid-sentence

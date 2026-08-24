@@ -11,6 +11,7 @@ import { runOpsTurn } from "./agent-ops";
 import { DEFAULT_MODEL } from "./config";
 import { enqueueTurn } from "./turn-queue";
 import { usableFinding } from "./triage-output";
+import { selectProviders } from "./tools/registry";
 import {
   parseTelegramUpdate,
   telegramConfigured,
@@ -203,8 +204,16 @@ export async function handleE2eDryRun(
   const result = await runOpsTurn(env, e2eToPrompt(report), { model });
   const verdict = usableFinding(result.text);
 
+  const selection = selectProviders(env);
+
   return Response.json({
     headline: e2eHeadline(report),
+    // Which sources the turn actually had, and why the rest were absent. A
+    // finding means something different with five sources than with one, and
+    // an adopter wiring this up against their own estate needs to see that
+    // their credentials took effect without reading the Worker's logs.
+    tools: selection.enabled.map((p) => p.name),
+    toolsSkipped: selection.skipped,
     raw: result.text,
     posted: verdict.text,
     reason: verdict.reason ?? null,

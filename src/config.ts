@@ -23,6 +23,22 @@ export interface ThinkbotEnv {
   /** AI Gateway id — enables gateway routing when set. */
   CF_AI_GATEWAY_ID?: string;
 
+  /**
+   * Which correlation tools to offer, comma-separated.
+   *
+   * UNSET IS THE NORMAL CASE: every provider this deployment has credentials
+   * for. The setting exists to narrow, not to opt in, so a fresh install works
+   * with none of it.
+   *
+   *   TOOLS=github,sentry     only these two
+   *   TOOLS=-datadog          everything credentialed, minus Datadog
+   *
+   * A provider missing its credentials is never offered — see
+   * src/tools/registry.ts for why that matters more than it sounds.
+   * Names: see PROVIDERS there, or the `[tools]` line in the logs.
+   */
+  TOOLS?: string;
+
   // ── clawdwatch ───────────────────────────────────────────────────────
   /** Base URL of the monitoring deployment, e.g. https://monitoring.example.workers.dev */
   MONITORING_URL?: string;
