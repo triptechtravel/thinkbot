@@ -13,6 +13,16 @@ import { createWorkersAI } from "workers-ai-provider";
 import { composeTools } from "./tools/registry";
 import { DEFAULT_MODEL } from "./config";
 
+/**
+ * Completion budget for a turn.
+ *
+ * Sized for a REASONING model: the visible paragraph is a few hundred tokens,
+ * but the thinking in front of it is not, and it is billed from the same
+ * budget. At 2048, four turns in five ended `finishReason=length` with an
+ * empty answer.
+ */
+export const MAX_OUTPUT_TOKENS = 8192;
+
 export const OPS_SYSTEM_PROMPT = `You are an operations assistant for a small engineering team.
 
 Your tools are whatever this deployment has been given — monitoring, code
@@ -126,27 +136,42 @@ export async function runOpsTurn(
       tools: composeTools(env),
       stopWhen: stepCountIs(12),
       // Workers AI defaults to a small completion budget — small enough that
-      // the deployment's triage paragraphs were arriving cut mid-sentence
-      // ("…appeared in the same window", no full stop), and the collapsed
-      // generation that reached Slack was exactly 256 characters long.
+      // the deployment's triage paragraphs were arriving cut mid-sentence, and
+      // the collapsed generation that reached Slack was exactly 256 characters.
       //
-      // That 256 was the cap, now confirmed rather than inferred: reproducing
-      // the collapse against this model with the cap at 2048 produces exactly
-      // 2048 characters. `!` is a single token, so a run of them is a
-      // generation emitting token 0 until the budget stops it — the length IS
-      // the cap, and reading it as a content limit would have sent the next
-      // reader looking in the wrong place.
+      // 2048 was the first correction and it was still too small. MEASURED
+      // over five turns: four ended `finishReason=length` with outputTokens
+      // exactly 2048 and an EMPTY answer — a reasoning model spending the
+      // whole budget thinking and having nothing left to write. The retry
+      // failed the same way, which is why two attempts at fixing it as a
+      // conversation-protocol problem could not work: it was never the
+      // protocol, it was the ceiling.
       //
-      // Raising it therefore makes a collapse LONGER, not rarer. That is
-      // deliberate and safe only because `usableFinding` drops the collapse
-      // before it can be posted; the headroom exists so a reasoning model's
-      // hidden tokens do not consume the whole budget before it starts
-      // writing the answer.
-      maxOutputTokens: 2048
+      // The comment above this line used to say the headroom existed "so a
+      // reasoning model's hidden tokens do not consume the whole budget before
+      // it starts writing the answer". That was the right worry and the wrong
+      // number.
+      //
+      // A collapse now runs to 8192 characters rather than 2048, since `!` is
+      // one token and a collapsed generation always runs to the cap. That is
+      // acceptable only because `usableFinding` drops it before it can be
+      // posted — the guard is what makes this headroom safe to buy.
+      maxOutputTokens: MAX_OUTPUT_TOKENS
     });
 
     const steps = result.steps?.length ?? 0;
     const text = result.text.trim();
+
+    // `finishReason` is the difference between "the model chose to stop" and
+    // "it ran out of budget mid-thought", and an empty turn looks identical
+    // either way from outside. Logged rather than inferred — guessing which
+    // one it was is how the last two attempts at this went.
+    if (!text) {
+      console.warn(
+        `[ops] empty text: finishReason=${result.finishReason} steps=${steps} ` +
+          `usage=${JSON.stringify(result.usage ?? {})}`
+      );
+    }
 
     // An empty string means "nothing worth saying" — callers decide whether
     // that becomes silence or a log line. Never invent filler text: it reads
@@ -210,8 +235,15 @@ export async function runOpsTurn(
         "Reply with the single word NOTHING only if that evidence genuinely",
         "explains nothing."
       ].join("\n"),
-      maxOutputTokens: 2048
+      maxOutputTokens: MAX_OUTPUT_TOKENS
     });
+
+    if (!summary.text.trim()) {
+      console.warn(
+        `[ops] retry ALSO empty: finishReason=${summary.finishReason} ` +
+          `usage=${JSON.stringify(summary.usage ?? {})} evidenceChars=${evidence.length}`
+      );
+    }
 
     return { text: summary.text.trim(), steps };
   } catch (err) {
