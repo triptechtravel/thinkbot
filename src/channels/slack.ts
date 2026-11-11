@@ -78,6 +78,23 @@ export async function verifySlackSignature(opts: {
 }
 
 /**
+ * Where `postSlack` will put a message, for the outbox. Never includes the
+ * webhook URL: its path is the credential.
+ */
+export function slackDestination(
+  env: Env,
+  channel: string,
+  threadTs?: string
+): string {
+  if (!env.SLACK_BOT_TOKEN && env.SLACK_WEBHOOK_URL) {
+    // A webhook posts to the channel it was created for, and cannot say which.
+    return "Slack (incoming webhook's channel)";
+  }
+  const where = channel || "(no channel set)";
+  return threadTs ? `Slack ${where}, thread ${threadTs}` : `Slack ${where}`;
+}
+
+/**
  * Post a message, preferring the bot token when present because it can thread
  * replies. Falls back to the incoming webhook, which cannot thread and always
  * posts to the channel the webhook was created for — `channel` is ignored in

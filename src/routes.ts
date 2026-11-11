@@ -25,8 +25,11 @@ import {
   slackConfigured,
   verifySlackSignature
 } from "./channels/slack";
-import { sendReply, type ReplyTarget } from "./channels/reply";
+import { describeTarget, sendReply, type ReplyTarget } from "./channels/reply";
+import { slackDestination } from "./channels/slack";
+import { recordOutbox } from "./outbox/store";
 import {
+  alertHeadline,
   alertToPrompt,
   inboxConfigured,
   verifyAlert
@@ -238,9 +241,16 @@ export async function announceE2eFailure(
   report: E2eReport
 ): Promise<void> {
   const headline = e2eHeadline(report);
+  const base = {
+    source: "e2e",
+    step: "headline",
+    trigger: headline,
+    context: report
+  } as const;
 
   if (!canPost(env)) {
     console.log("[e2e]", headline);
+    await recordOutbox(env, { ...base, outcome: "logged", text: headline });
     return;
   }
 
@@ -248,9 +258,58 @@ export async function announceE2eFailure(
   // call, so it costs the caller milliseconds, and it means the alert does not
   // depend on the queue being healthy — a backed-up or unbound queue delays
   // the explanation, never the fact that something failed.
-  await postSlack(env, env.SLACK_ALERT_CHANNEL ?? "", headline).catch((err) =>
-    console.error("[e2e] posting the headline failed:", err)
-  );
+  await deliver(env, base, env.SLACK_ALERT_CHANNEL ?? "", headline, null);
+}
+
+/**
+ * Post to the alert channel and record what happened. Never throws: a
+ * failure is logged and lands in the outbox as `failed`.
+ */
+async function deliver(
+  env: Env,
+  base: {
+    source: "alert" | "e2e";
+    step: "headline" | "finding";
+    trigger: string;
+    context: unknown;
+  },
+  channel: string,
+  text: string,
+  turn: TriageTurn | null
+): Promise<void> {
+  const destination = slackDestination(env, channel);
+  const meta = turn ? turnMeta(turn) : {};
+  try {
+    await postSlack(env, channel, text);
+    await recordOutbox(env, {
+      ...base,
+      ...meta,
+      outcome: "posted",
+      destination,
+      text
+    });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error(`[${base.source}] posting the ${base.step} failed:`, err);
+    await recordOutbox(env, {
+      ...base,
+      ...meta,
+      outcome: "failed",
+      destination,
+      text,
+      reason: message
+    });
+  }
+}
+
+function turnMeta(turn: TriageTurn) {
+  return {
+    raw: turn.raw,
+    model: turn.model,
+    steps: turn.steps,
+    tools: turn.tools,
+    ms: turn.ms
+  };
 }
 
 /**
@@ -263,12 +322,25 @@ export async function triageE2eReport(
   env: Env,
   report: E2eReport
 ): Promise<void> {
-  const finding = await runTriageTurn(env, e2eToPrompt(report), "e2e");
-  if (!finding) return;
+  const turn = await runTriageTurn(env, e2eToPrompt(report), "e2e");
+  const base = {
+    source: "e2e",
+    step: "finding",
+    trigger: e2eHeadline(report),
+    context: report
+  } as const;
 
-  await postSlack(env, env.SLACK_ALERT_CHANNEL ?? "", finding).catch((err) =>
-    console.error("[e2e] posting the finding failed:", err)
-  );
+  if (!turn.text) {
+    await recordOutbox(env, {
+      ...base,
+      ...turnMeta(turn),
+      outcome: "silent",
+      reason: turn.reason
+    });
+    return;
+  }
+
+  await deliver(env, base, env.SLACK_ALERT_CHANNEL ?? "", turn.text, turn);
 }
 
 /**
@@ -283,18 +355,39 @@ export async function answerChat(
   env: Env,
   job: { sessionId: string; text: string; target: ReplyTarget }
 ): Promise<void> {
-  const answer = await runOpsTurn(env, job.text)
-    .then((result) => result.text?.trim() ?? "")
-    .catch((err) => {
-      console.error("[chat] turn failed:", job.sessionId, err);
-      return "";
-    });
+  const started = Date.now();
+  const result = await runOpsTurn(env, job.text).catch((err) => {
+    console.error("[chat] turn failed:", job.sessionId, err);
+    return null;
+  });
+  const answer = result?.text?.trim() ?? "";
+  const text =
+    answer || "I could not finish that one — nothing came back from the model.";
 
-  await sendReply(
-    env,
-    job.target,
-    answer || "I could not finish that one — nothing came back from the model."
-  ).catch((err) => console.error("[chat] reply failed:", job.sessionId, err));
+  const entry = {
+    source: "chat",
+    step: "reply",
+    trigger: job.text,
+    destination: describeTarget(env, job.target),
+    text,
+    model: env.MODEL ?? DEFAULT_MODEL,
+    steps: result?.steps ?? null,
+    tools: result?.tools ?? null,
+    ms: Date.now() - started,
+    context: { sessionId: job.sessionId }
+  } as const;
+
+  try {
+    await sendReply(env, job.target, text);
+    await recordOutbox(env, { ...entry, outcome: "posted" });
+  } catch (err) {
+    console.error("[chat] reply failed:", job.sessionId, err);
+    await recordOutbox(env, {
+      ...entry,
+      outcome: "failed",
+      reason: err instanceof Error ? err.message : String(err)
+    });
+  }
 }
 
 /**
@@ -305,14 +398,39 @@ export async function answerChat(
  * this race leaves a log line saying so, which is the difference between
  * "found nothing" and "never finished".
  */
+interface TriageTurn {
+  /** What to post, or "" for silence. */
+  text: string;
+  /** What the model actually wrote. */
+  raw: string;
+  /** Why `text` is empty or differs from `raw`. */
+  reason: string | null;
+  model: string;
+  steps: number;
+  tools: string[];
+  ms: number;
+}
+
 async function runTriageTurn(
   env: Env,
   prompt: string,
   label: string
-): Promise<string> {
+): Promise<TriageTurn> {
+  const started = Date.now();
+  const model = env.MODEL ?? DEFAULT_MODEL;
+  const empty = (reason: string): TriageTurn => ({
+    text: "",
+    raw: "",
+    reason,
+    model,
+    steps: 0,
+    tools: [],
+    ms: Date.now() - started
+  });
+
   return Promise.race([
     runOpsTurn(env, prompt)
-      .then((result) => {
+      .then((result): TriageTurn => {
         // Nothing sits between the model and the channel but this. On
         // 2026-08-22 a collapsed generation put 256 exclamation marks under a
         // real incident headline, because the only checks here were "empty"
@@ -325,20 +443,30 @@ async function runTriageTurn(
             JSON.stringify(result.text.slice(0, 200))
           );
         }
-        return verdict.text;
+        return {
+          text: verdict.text,
+          raw: result.text,
+          reason: verdict.reason ?? null,
+          model,
+          steps: result.steps,
+          tools: result.tools ?? [],
+          ms: Date.now() - started
+        };
       })
       .catch((err) => {
         console.error(`[${label}] triage failed:`, err);
-        return "";
+        return empty(
+          `triage failed: ${err instanceof Error ? err.message : String(err)}`
+        );
       }),
-    new Promise<string>((resolve) =>
+    new Promise<TriageTurn>((resolve) =>
       setTimeout(() => {
         console.error(
           `[${label}] triage did not finish within`,
           TRIAGE_TIMEOUT_MS,
           "ms"
         );
-        resolve("");
+        resolve(empty(`did not finish within ${TRIAGE_TIMEOUT_MS / 1000}s`));
       }, TRIAGE_TIMEOUT_MS)
     )
   ]);
@@ -361,21 +489,42 @@ async function runTriageTurn(
  */
 export async function triageAlert(env: Env, event: AlertEvent): Promise<void> {
   // The prompt asks for the bare word NOTHING when triage came up empty.
-  const finding = await runTriageTurn(env, alertToPrompt(event), "alert");
-  if (!finding) {
+  const turn = await runTriageTurn(env, alertToPrompt(event), "alert");
+  const base = {
+    source: "alert",
+    step: "finding",
+    trigger: alertHeadline(event),
+    context: event
+  } as const;
+
+  if (!turn.text) {
     console.log("[alert] triage found nothing to report");
+    await recordOutbox(env, {
+      ...base,
+      ...turnMeta(turn),
+      outcome: "silent",
+      reason: turn.reason ?? "the model found nothing worth reporting"
+    });
     return;
   }
 
   if (!canPost(env)) {
-    console.log("[alert] triage:", finding);
+    console.log("[alert] triage:", turn.text);
+    await recordOutbox(env, {
+      ...base,
+      ...turnMeta(turn),
+      outcome: "logged",
+      text: turn.text
+    });
     return;
   }
 
   const label = "check" in event ? event.check.name : "monitoring";
-  await postSlack(
+  await deliver(
     env,
+    base,
     env.SLACK_ALERT_CHANNEL ?? "",
-    `*${label}* — ${finding}`
-  ).catch((err) => console.error("[alert] analysis failed:", err));
+    `*${label}* — ${turn.text}`,
+    turn
+  );
 }

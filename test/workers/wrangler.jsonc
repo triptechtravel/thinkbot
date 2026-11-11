@@ -1,0 +1,20 @@
+{
+  // Test-only Worker config: the real entry point on a miniflare D1, without
+  // the remote AI binding or the queue, so the suite runs offline.
+  "name": "thinkbot-test",
+  "main": "../../src/server.ts",
+  "compatibility_date": "2026-06-11",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "CF_ACCESS_TEAM_DOMAIN": "test.cloudflareaccess.com",
+    "CF_ACCESS_AUD": "test-aud",
+    "SLACK_WEBHOOK_URL": "https://hooks.slack.com/services/T000/B000/secret-token"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "thinkbot-test",
+      "database_id": "00000000-0000-0000-0000-000000000000"
+    }
+  ]
+}

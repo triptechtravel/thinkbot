@@ -18,12 +18,13 @@
     "format": "oxfmt --write .",
     "lint": "oxlint src/",
     "check": "oxfmt --check . && oxlint src/ && tsc",
-    "test": "vitest run",
+    "test": "vitest run && vitest run --config vitest.workers.config.ts",
     "typecheck": "tsc --noEmit",
     "docs:dev": "vitepress dev docs",
     "docs:build": "vitepress build docs",
     "docs:preview": "vitepress preview docs",
-    "test:integration": "vitest run --config vitest.integration.config.ts"
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:workers": "vitest run --config vitest.workers.config.ts"
   },
   "dependencies": {
     "ai": "^6.0.197",
@@ -32,6 +33,7 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
+    "@cloudflare/vitest-plugin": "^1.8.0",
     "@types/node": "^26.0.1",
     "oxfmt": "^0.56.0",
     "oxlint": "^1.71.0",

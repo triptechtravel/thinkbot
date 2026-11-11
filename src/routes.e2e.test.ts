@@ -18,7 +18,8 @@ vi.mock("./channels/slack", () => ({
   slackConfigured: () => false,
   verifySlackSignature: async () => false,
   parseSlackEvent: () => null,
-  isUrlVerification: () => null
+  isUrlVerification: () => null,
+  slackDestination: () => "Slack test"
 }));
 vi.mock("./agent-ops", () => ({ runOpsTurn }));
 

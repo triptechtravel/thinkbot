@@ -34,6 +34,19 @@
     ]
   },
 
+  // The outbox: what the bot sent, where, and what it chose not to send.
+  // Read by the Access-gated /outbox page. Optional — without it nothing is
+  // recorded. A fork creates its own (`wrangler d1 create thinkbot`) and
+  // replaces database_id, then `wrangler d1 migrations apply thinkbot --remote`.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "thinkbot",
+      "database_id": "REPLACE_WITH_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+
   // No public surface. thinkbot holds a GitHub PAT, Datadog and Sentry keys,
   // and write access to monitoring incidents. Inbound traffic is signed
   // webhooks only (Slack, Telegram, clawdwatch), each verified before any

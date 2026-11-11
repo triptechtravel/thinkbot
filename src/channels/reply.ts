@@ -10,7 +10,7 @@
  */
 
 import { sendTelegram } from "./telegram";
-import { postSlack } from "./slack";
+import { postSlack, slackDestination } from "./slack";
 
 export type ReplyTarget =
   | { channel: "slack"; conversation: string; threadTs?: string }
@@ -33,4 +33,11 @@ export async function sendReply(
     return;
   }
   await sendTelegram(env, target.chatId, text);
+}
+
+/** Where a reply goes, for the outbox. */
+export function describeTarget(env: Env, target: ReplyTarget): string {
+  return target.channel === "slack"
+    ? slackDestination(env, target.conversation, target.threadTs)
+    : `Telegram chat ${target.chatId}`;
 }

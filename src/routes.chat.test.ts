@@ -5,7 +5,10 @@ const sendReply = vi.fn(
 );
 const runOpsTurn = vi.fn(async () => ({ text: "here is your answer" }));
 
-vi.mock("./channels/reply", () => ({ sendReply }));
+vi.mock("./channels/reply", () => ({
+  sendReply,
+  describeTarget: () => "test target"
+}));
 vi.mock("./agent-ops", () => ({ runOpsTurn }));
 vi.mock("./channels/slack", () => ({
   postSlack: async () => {},
@@ -13,7 +16,8 @@ vi.mock("./channels/slack", () => ({
   slackConfigured: () => false,
   verifySlackSignature: async () => false,
   parseSlackEvent: () => null,
-  isUrlVerification: () => null
+  isUrlVerification: () => null,
+  slackDestination: () => "Slack test"
 }));
 
 const { answerChat } = await import("./routes");

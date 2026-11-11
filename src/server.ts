@@ -18,6 +18,7 @@ import {
   triageE2eReport
 } from "./routes";
 import { enqueueTurn, type QueueJob } from "./turn-queue";
+import { handleOutbox } from "./outbox/routes";
 import { WorkerEntrypoint } from "cloudflare:workers";
 import type { AlertEvent } from "clawdwatch";
 
@@ -103,16 +104,25 @@ export default {
       return Response.json({ ok: true, service: "thinkbot" });
     }
 
+    // The one browsable surface: what the bot sent. Verifies the Access JWT
+    // itself and 404s when Access is not configured — see outbox/access.ts.
+    if (pathname === "/outbox" || pathname.startsWith("/outbox/")) {
+      return (
+        (await handleOutbox(request, env)) ??
+        new Response("Not found", { status: 404 })
+      );
+    }
+
     // Nothing else is served. This Worker holds a GitHub PAT, Datadog and
     // Sentry keys, and write access to monitoring incidents; a chat surface
     // reachable by anyone who found the hostname would hand over all of it.
     // Every route above verifies its caller before doing any work, and there
     // is no asset bundle behind this line to answer in the Worker's place.
     //
-    // To add a UI, put the hostname behind Cloudflare Access with a bypass
-    // policy for /hooks/* — webhook senders cannot authenticate to Access —
-    // and serve it from a route here rather than from static assets, so it
-    // stays behind the same check as everything else.
+    // /outbox above is the pattern for any further UI: a path-scoped Access
+    // application (so /hooks/* stay reachable by webhook senders, which cannot
+    // authenticate to Access), a JWT check in the Worker, and a route here
+    // rather than static assets.
     return new Response("Not found", { status: 404 });
   }
 } satisfies ExportedHandler<Env, QueueJob>;

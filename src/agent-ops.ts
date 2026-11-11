@@ -97,6 +97,18 @@ export function opsSystemPrompt(env: Env): string {
 export interface AskResult {
   text: string;
   steps: number;
+  /** Tool names called during the turn, in order. For the outbox. */
+  tools?: string[];
+}
+
+function toolsCalled(
+  steps: Array<{ toolCalls?: unknown[] }> | undefined
+): string[] {
+  return (steps ?? []).flatMap((step) =>
+    (step.toolCalls ?? []).map(
+      (call) => (call as { toolName?: string }).toolName ?? "tool"
+    )
+  );
 }
 
 /**
@@ -161,6 +173,7 @@ export async function runOpsTurn(
 
     const steps = result.steps?.length ?? 0;
     const text = result.text.trim();
+    const tools = toolsCalled(result.steps);
 
     // `finishReason` is the difference between "the model chose to stop" and
     // "it ran out of budget mid-thought", and an empty turn looks identical
@@ -188,7 +201,7 @@ export async function runOpsTurn(
     // the model nothing to do except write. Bounded to a single extra call:
     // the alternative is re-running the whole investigation, at several times
     // the cost, to recover an answer it had already reached.
-    if (text || steps === 0) return { text, steps };
+    if (text || steps === 0) return { text, steps, tools };
 
     console.warn(
       `[ops] ${steps} step(s) produced no text — asking for the summary`
@@ -219,7 +232,7 @@ export async function runOpsTurn(
       })
       .join("\n\n");
 
-    if (!evidence) return { text: "", steps };
+    if (!evidence) return { text: "", steps, tools };
 
     const summary = await generateText({
       model: workersai(options.model ?? env.MODEL ?? DEFAULT_MODEL),
@@ -245,7 +258,7 @@ export async function runOpsTurn(
       );
     }
 
-    return { text: summary.text.trim(), steps };
+    return { text: summary.text.trim(), steps, tools };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error("[ops] turn failed:", message);
