@@ -1,5 +1,5 @@
 /**
- * The /outbox page: what thinkbot sent, where, and what it said.
+ * The outbox page, served at /: what thinkbot sent, where, and what it said.
  *
  * Server-rendered HTML with no build step and no asset bundle: thinkbot
  * deliberately has no `assets` block (see wrangler.jsonc), so the page is a

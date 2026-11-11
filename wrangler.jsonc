@@ -35,7 +35,7 @@
   },
 
   // The outbox: what the bot sent, where, and what it chose not to send.
-  // Read by the Access-gated /outbox page. Optional — without it nothing is
+  // Read by the Access-gated outbox page at /. Optional — without it nothing is
   // recorded. The id below is Triptech's: a fork creates its own
   // (`wrangler d1 create thinkbot`), replaces database_id, then runs
   // `wrangler d1 migrations apply thinkbot --remote`.

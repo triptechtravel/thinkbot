@@ -76,17 +76,17 @@ export interface ThinkbotEnv {
   // ── Outbox ───────────────────────────────────────────────────────────
   /**
    * D1 database for the outbox: what the bot sent, where, and what it chose
-   * not to send. Optional: without it nothing is recorded and /outbox 404s.
+   * not to send. Optional: without it nothing is recorded and the outbox page is empty.
    */
   DB?: D1Database;
 
   /**
-   * Cloudflare Access for the /outbox page. BOTH are required to serve it:
+   * Cloudflare Access for the outbox page (/ and /api/outbox). BOTH are required to serve it:
    * the page shows alert payloads and model output, so it fails closed when
    * either is missing rather than trusting that Access sits in front.
    *
    * CF_ACCESS_TEAM_DOMAIN: e.g. `yourteam.cloudflareaccess.com`.
-   * CF_ACCESS_AUD: the AUD tag of the Access application covering /outbox.
+   * CF_ACCESS_AUD: the AUD tag of the Access application covering the page.
    */
   CF_ACCESS_TEAM_DOMAIN?: string;
   CF_ACCESS_AUD?: string;

@@ -198,12 +198,12 @@ system prompt and read by a model, so plain prose is fine.
 
 ## The outbox
 
-`/outbox` lists every message thinkbot sent in the last 30 days: what prompted
+The root page (`/`) is the outbox: every message thinkbot sent in the last 30 days: what prompted
 it (the alert, the failing run, the question), where it went, what it said,
 which tools the turn called, and the raw model output when the guard dropped or
 changed it. Triage turns that stayed silent are listed too, with the reason,
 because "why did it say nothing?" is the question the channel can't answer.
-`/outbox/api/entries` serves the same rows as JSON (`source`, `outcome`,
+`/api/outbox` serves the same rows as JSON (`source`, `outcome`,
 `limit`, `before` for paging).
 
 It needs a D1 database (`DB`, migrations in `migrations/`) and Cloudflare
@@ -211,9 +211,10 @@ Access:
 
 1. `wrangler d1 create thinkbot`, put the id in `wrangler.jsonc`, then
    `wrangler d1 migrations apply thinkbot --remote`.
-2. Create an Access application for `<your hostname>/outbox` only (path-scoped,
-   so `/hooks/*` stay reachable by webhook senders), or add that path as a
-   destination on an Access application you already have.
+2. Put the hostname behind an Access application, and add a second
+   application for `<your hostname>/hooks/*` with a **Bypass** policy:
+   Slack, Telegram, CI runners and clawdwatch's webhook cannot authenticate
+   to Access, and every hook verifies its own signature.
 3. Set `CF_ACCESS_TEAM_DOMAIN` (e.g. `yourteam.cloudflareaccess.com`) and
    `CF_ACCESS_AUD` (the application's AUD tag) as secrets.
 
@@ -226,7 +227,7 @@ public page.
 thinkbot holds a GitHub PAT and several vendor keys. It has **no public
 surface**: `workers_dev` and `preview_urls` are off, there is no chat UI and no
 static asset bundle, and every inbound route verifies its caller before doing
-any work. The one page, `/outbox`, is behind Cloudflare Access and checks the
+any work. The one page, the outbox at `/`, is behind Cloudflare Access and checks the
 Access JWT in the Worker as well. The absence of assets is deliberate — they are matched before the
 Worker runs, so a bundle answers requests that no route guard ever sees.
 

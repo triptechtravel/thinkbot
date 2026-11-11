@@ -285,25 +285,25 @@ describe("recording what was sent", () => {
   });
 });
 
-describe("the /outbox page", () => {
+describe("the outbox page", () => {
   it("refuses a request that did not come through Access", async () => {
-    expect((await page("/outbox")).status).toBe(403);
-    expect((await page("/outbox/api/entries")).status).toBe(403);
+    expect((await page("/")).status).toBe(403);
+    expect((await page("/api/outbox")).status).toBe(403);
   });
 
   it("refuses a forged or foreign token", async () => {
     const wrongAud = await accessJwt({ aud: ["another-app"] });
     expect(
-      (await page("/outbox", { "Cf-Access-Jwt-Assertion": wrongAud })).status
+      (await page("/", { "Cf-Access-Jwt-Assertion": wrongAud })).status
     ).toBe(403);
     const tampered = (await accessJwt()).replace(/\.[^.]+$/, ".AAAA");
     expect(
-      (await page("/outbox", { "Cf-Access-Jwt-Assertion": tampered })).status
+      (await page("/", { "Cf-Access-Jwt-Assertion": tampered })).status
     ).toBe(403);
   });
 
   it("is not served at all when Access is not configured", async () => {
-    const request = new Request("https://thinkbot.example.com/outbox", {
+    const request = new Request("https://thinkbot.example.com/", {
       headers: { "Cf-Access-Jwt-Assertion": await accessJwt() }
     });
     const response = await handleOutbox(request, {
@@ -322,7 +322,7 @@ describe("the /outbox page", () => {
       text: "Cause: <script>alert(1)</script> in the deploy"
     });
 
-    const response = await page("/outbox", {
+    const response = await page("/", {
       "Cf-Access-Jwt-Assertion": await accessJwt()
     });
     expect(response.status).toBe(200);
@@ -345,7 +345,7 @@ describe("the /outbox page", () => {
       outcome: "posted",
       text: "because"
     });
-    const response = await page("/outbox/api/entries?source=chat", {
+    const response = await page("/api/outbox?source=chat", {
       "Cf-Access-Jwt-Assertion": await accessJwt()
     });
     const body = (await response.json()) as {
@@ -354,6 +354,29 @@ describe("the /outbox page", () => {
     };
     expect(body.entries.map((e) => e.trigger)).toEqual(["why?"]);
     expect(body.next).toBeNull();
+  });
+
+  it("redirects the old /outbox address to the page, keeping filters", async () => {
+    const response = await SELF.fetch(
+      "https://thinkbot.example.com/outbox?source=chat",
+      {
+        redirect: "manual"
+      }
+    );
+    expect(response.status).toBe(301);
+    expect(response.headers.get("Location")).toBe(
+      "https://thinkbot.example.com/?source=chat"
+    );
+  });
+
+  it("serves nothing else at other paths", async () => {
+    expect(
+      (
+        await page("/anything", {
+          "Cf-Access-Jwt-Assertion": await accessJwt()
+        })
+      ).status
+    ).toBe(404);
   });
 
   it("leaves the signed webhooks reachable without Access", async () => {

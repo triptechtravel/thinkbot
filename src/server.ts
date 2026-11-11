@@ -80,7 +80,7 @@ export default {
   },
 
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
-    const { pathname } = new URL(request.url);
+    const { pathname, search } = new URL(request.url);
 
     // Channels and hooks are plain routes, checked before the agent router so
     // they never depend on its path conventions.
@@ -104,12 +104,22 @@ export default {
       return Response.json({ ok: true, service: "thinkbot" });
     }
 
-    // The one browsable surface: what the bot sent. Verifies the Access JWT
-    // itself and 404s when Access is not configured — see outbox/access.ts.
-    if (pathname === "/outbox" || pathname.startsWith("/outbox/")) {
+    // The one browsable surface, at the root: what the bot sent. Verifies
+    // the Access JWT itself and 404s when Access is not configured — see
+    // outbox/access.ts.
+    if (pathname === "/" || pathname === "/api/outbox") {
       return (
         (await handleOutbox(request, env)) ??
         new Response("Not found", { status: 404 })
+      );
+    }
+
+    // Where the page lived first. Kept as a redirect so old links work; the
+    // redirect reveals nothing, and the page it points at checks Access.
+    if (pathname === "/outbox" || pathname === "/outbox/") {
+      return Response.redirect(
+        new URL(`/${search}`, request.url).toString(),
+        301
       );
     }
 
@@ -119,10 +129,10 @@ export default {
     // Every route above verifies its caller before doing any work, and there
     // is no asset bundle behind this line to answer in the Worker's place.
     //
-    // /outbox above is the pattern for any further UI: a path-scoped Access
-    // application (so /hooks/* stay reachable by webhook senders, which cannot
-    // authenticate to Access), a JWT check in the Worker, and a route here
-    // rather than static assets.
+    // The outbox above is the pattern for any further UI: Access in front
+    // (with /hooks/* bypassed, since webhook senders cannot authenticate to
+    // Access), a JWT check in the Worker, and a route here rather than static
+    // assets.
     return new Response("Not found", { status: 404 });
   }
 } satisfies ExportedHandler<Env, QueueJob>;

@@ -1,5 +1,5 @@
 /**
- * GET /outbox (the page) and GET /outbox/api/entries (its data as JSON).
+ * GET / (the outbox page) and GET /api/outbox (its data as JSON).
  *
  * Both sit behind `requireAccess`: they are the only routes in this Worker a
  * person reaches with a browser, and the only ones that read back what the
@@ -45,8 +45,8 @@ export async function handleOutbox(
   env: Env
 ): Promise<Response | null> {
   const url = new URL(request.url);
-  const isPage = url.pathname === "/outbox" || url.pathname === "/outbox/";
-  const isApi = url.pathname === "/outbox/api/entries";
+  const isPage = url.pathname === "/";
+  const isApi = url.pathname === "/api/outbox";
   if (!isPage && !isApi) return null;
   if (request.method !== "GET") {
     return new Response("Method not allowed", { status: 405 });

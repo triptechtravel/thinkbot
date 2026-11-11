@@ -1,5 +1,5 @@
 /**
- * The Access gate for /outbox.
+ * The Access gate for the outbox page (/) and its JSON (/api/outbox).
  *
  * The page shows alert payloads (which can carry a captured response body)
  * and raw model output, so it is never served on the strength of a hostname
